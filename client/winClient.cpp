@@ -7,11 +7,8 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-struct DataPackage
-{
-	int age;
-	char name[32];
-};
+#include "dataType.h"
+
 void startWinClient()
 {
 	WORD ver = MAKEWORD(2, 2); // winsocket的版本
@@ -57,30 +54,44 @@ void startWinClient()
 		{
 			std::cout << "客户端退出！\n";
 			break;
+		}else if (strcmp(msgBuf,"login") == 0)
+		{
+			// 3.发送命令
+			Login login;
+			strcpy_s(login.userName, "Andy");
+			strcpy_s(login.passWord, "123456");
+
+			send(_sock, (char*)&login, login.dataLength, 0);
+
+			// 4.接收服务器信息 recv
+			LoginResult loginResult = {};
+			recv(_sock, (char*)&loginResult, sizeof(LoginResult), 0);
+			std::cout << "loginResult : " << loginResult.result << std::endl;
+
+
+			std::cout << "登录！\n";
+			
+		}else if (strcmp(msgBuf,"logout") == 0)
+		{
+			Logout logout;
+			strcpy_s(logout.userName, "Andy");
+
+			send(_sock, (char*)&logout, logout.dataLength, 0);
+
+			// 4.接收服务器信息 recv
+			LogoutResult logoutResult = {};
+			recv(_sock, (char*)&logoutResult, sizeof(LogoutResult), 0);
+			std::cout << "loginResult : " << logoutResult.result << std::endl;
+					   
+			std::cout << "退出！\n";
+			
 		}
 		else
 		{
-			// 3.发送命令
-			send(_sock, msgBuf, 4096, 0);
-		}
-
-		// 4.接收服务器信息 recv
-		char recvBuf[4096] = {};
-		int nLen = recv(_sock, recvBuf, 4096, 0);
-		DataPackage* dp = (DataPackage*)recvBuf;
-		if (nLen > 0)
-		{	// 连接持续中
-			// std::cout << recvBuf << std::endl;
-			std::cout << "dp.Age: " << dp->age << "   dp.Name:" << dp->name << std::endl;
-		}
-		else
-		{	// 连接断开
-			std::cout << "连接断开\n";
-
+			
+			std::cout << "不支持指令 请重新输入 \n";
 		}
 	}
-
-
 
 	// 4.关闭套接字closesocket
 	closesocket(_sock);

@@ -6,12 +6,7 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-
-struct DataPackage
-{
-	int age;
-	char name[32];
-};
+#include "dataType.h"
 
 void startWinServer()
 {
@@ -65,34 +60,55 @@ void startWinServer()
 		std::cout << "ip: " << clientAddr.sin_addr.S_un.S_addr << "  端口：" << clientAddr.sin_port << "   连接成功！\n";
 	}
 
-	char _recvBuf[4096] = {};
+	
 	while (true)
 	{
+		DataHeader header = {};
+
 		// 5.接收信息
-		int nLen = recv(_cSock, _recvBuf, 4096, 0);
+		int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			// 连接失败
 			std::cout << "客户端连接断开\n";
 			break;
 		}
-		std::cout << "收到命令： " << _recvBuf << "\n";
 
 		// 6.处理消息
-		if (0 == strcmp(_recvBuf, "getInfo"))
+		switch (header.cmd)
 		{
-			DataPackage dp = {80,"张国荣"};
-			send(_cSock, (const char*)&dp, sizeof(DataPackage), 0);
-		}
-		else
-		{
-			char msgBuf[] = "???";
-			// 7.send发送一条数据
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0); // strlen() 需要+1 主要是因为strlen不会统计str的结束符，所以发送的时候需要长度加一
+		case CMD_LOGIN:
+			{
+				Login login = {};
+				recv(_cSock, (char*)&login + sizeof(DataHeader), sizeof(Login) - sizeof(DataHeader), 0);
+				std::cout << "收到命令： " << header.cmd << "   命令长度为：" << header.dataLength << "   userName: " << login.userName << "    passWord: " << login.passWord << "\n";
+
+				// 先忽略密码判断
+				LoginResult ret;
+				send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
+			}
+			break;
+		case CMD_LOGOUT:
+			{
+				Logout logout = {};
+				recv(_cSock, (char*)&logout + sizeof(DataHeader), sizeof(Logout) - sizeof(DataHeader), 0);
+				std::cout << "收到命令： " << header.cmd << "   命令长度为：" << header.dataLength << "   userName: " << logout.userName <<  "\n";
+
+				// 先忽略密码判断
+				LogoutResult ret;
+				send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
+			}
+			break;
+			default:
+				header.cmd = CMD_ERROR;
+				header.dataLength = 0;
+				send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			break;
+				
 		}
 	}
 
-	// 6.关闭套接字 closesocket
+	// 8.关闭套接字 closesocket
 	closesocket(_sock);
 	WSACleanup();
 	getchar();
