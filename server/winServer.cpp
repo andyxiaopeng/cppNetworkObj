@@ -63,10 +63,12 @@ void startWinServer()
 	
 	while (true)
 	{
-		DataHeader header = {};
 
+		// 缓冲区
+		char szRecv[1024] = {};
+		
 		// 5.接收信息
-		int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
+		int nLen = recv(_cSock, szRecv, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			// 连接失败
@@ -75,37 +77,38 @@ void startWinServer()
 		}
 
 		// 6.处理消息
-		switch (header.cmd)
+		DataHeader* header = (DataHeader*)szRecv;
+		switch (header->cmd)
 		{
 		case CMD_LOGIN:
-			{
-				Login login = {};
-				recv(_cSock, (char*)&login + sizeof(DataHeader), sizeof(Login) - sizeof(DataHeader), 0);
-				std::cout << "收到命令： " << header.cmd << "   命令长度为：" << header.dataLength << "   userName: " << login.userName << "    passWord: " << login.passWord << "\n";
+		{
+			recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			Login* login = (Login*)szRecv;
+			std::cout << "收到命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << login->userName << "    passWord: " << login->passWord << "\n";
 
-				// 先忽略密码判断
-				LoginResult ret;
-				send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
-			}
-			break;
-		case CMD_LOGOUT:
-			{
-				Logout logout = {};
-				recv(_cSock, (char*)&logout + sizeof(DataHeader), sizeof(Logout) - sizeof(DataHeader), 0);
-				std::cout << "收到命令： " << header.cmd << "   命令长度为：" << header.dataLength << "   userName: " << logout.userName <<  "\n";
-
-				// 先忽略密码判断
-				LogoutResult ret;
-				send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
-			}
-			break;
-			default:
-				header.cmd = CMD_ERROR;
-				header.dataLength = 0;
-				send(_cSock, (char*)&header, sizeof(DataHeader), 0);
-			break;
-				
+			// 先忽略密码判断
+			LoginResult ret;
+			send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
 		}
+		break;
+		case CMD_LOGOUT:
+		{
+			recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			Logout* logout = (Logout*)szRecv;
+			std::cout << "收到命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << logout->userName << "\n";
+
+			// 先忽略密码判断
+			LogoutResult ret;
+			send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
+		}
+		break;
+		default:
+			DataHeader header = { 0,CMD_ERROR };
+			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			break;
+
+		}
+		
 	}
 
 	// 8.关闭套接字 closesocket
