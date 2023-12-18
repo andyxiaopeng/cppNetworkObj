@@ -13,9 +13,6 @@
 	#define SOCKET_ERROR            (-1)
 #endif
 
-
-
-
 #include <iostream>
 #include "dataType.h"
 #include <thread>
@@ -132,7 +129,6 @@ void startBaseClient()
 	else
 	{
 		std::cout << "创建socket成功\n";
-
 	}
 
 	// 2.连接服务器connect
@@ -140,7 +136,7 @@ void startBaseClient()
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567);
 #ifdef _WIN32
-	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1"); // 10.60.83.46
 #else
 	_sin.sin_addr.s_addr = inet_addr("192.168.3.11");
 #endif
@@ -197,7 +193,6 @@ void startBaseClient()
 #else
 	close(_sock);
 #endif
-
 
 	std::cout << "已退出\n";
 	getchar();
