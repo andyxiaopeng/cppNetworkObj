@@ -122,7 +122,7 @@ void startWinServer()
 
 		/// nfds 是一个整数值，是指fd_set集合中所有的描述符范围，而不是数量
 		///	既是所有描述符最大值+1， 在windows中无所谓，传一个任意值都行
-		timeval t = { 0,0 }; // 两个0，代表没有需要等待时间 === 非阻塞。
+		timeval t = { 1,0 }; // 两个0，代表没有需要等待时间 === 非阻塞。
 		int ret = select(_sock+1,&fdRead,&fdWrite,&fdExp,&t); // select 是由内核提供的监听程序，客户端向服务端发送连接请求本质是一个读事件，而select就是监听这类读事件。
 		// ！！！ps：若文件描述符fd（也就是socket）没有任何时间发生，那么在调用select后，fd在集合中的值会被置为0；
 		// select()返回结果是fdRead\fdWrite\fdExp这三个集合发生事件的总数.
@@ -160,9 +160,7 @@ void startWinServer()
 				g_clients.push_back(_cSock);
 				std::cout << "ip: " << clientAddr.sin_addr.S_un.S_addr << "  端口：" << clientAddr.sin_port << "   连接成功！\n";
 			}
-			
 		}
-
 		for (int n = 0; n < (int)fdRead.fd_count; ++n)
 		{
 			if (-1 == prosessor(fdRead.fd_array[n])) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
@@ -175,7 +173,7 @@ void startWinServer()
 			}
 		}
 
-		std::cout << "空闲！！！" << std::endl;
+		//std::cout << "空闲！！！" << std::endl;
 	}
 
 	for (int n = 0;n < (int)g_clients.size();++n)

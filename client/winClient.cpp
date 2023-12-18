@@ -8,6 +8,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #include "dataType.h"
+#include <thread>
 
 int prosessor(SOCKET _sock)
 {
@@ -53,6 +54,43 @@ int prosessor(SOCKET _sock)
 			break;
 	}
 }
+bool g_Run = true;
+void cmdInputThread(SOCKET sock)
+{
+	while (true)
+	{
+		char msgBuf[4096] = {};
+		std::cin >> msgBuf;
+
+		if (strcmp("exit", msgBuf) == 0)
+		{
+			std::cout << " cmdInputThread线程结束，客户端退出！\n";
+			g_Run = false;
+			return;
+		}
+		else if (strcmp(msgBuf, "login") == 0)
+		{
+			// 3.发送命令
+			Login login;
+			strcpy_s(login.userName, "Andy");
+			strcpy_s(login.passWord, "123456");
+
+			send(sock, (char*)&login, login.dataLength, 0);
+
+		}
+		else if (strcmp(msgBuf, "logout") == 0)
+		{
+			Logout logout;
+			strcpy_s(logout.userName, "Andy");
+
+			send(sock, (char*)&logout, logout.dataLength, 0);
+		}
+		else
+		{
+			std::cout << "不支持指令 请重新输入 \n";
+		}
+	}
+}
 
 void startWinClient()
 {
@@ -90,14 +128,19 @@ void startWinClient()
 
 	}
 
+	// 客户端加入select模型之后，再进行指令数据输入的话，需要加入多线程
+	//cmdInputThread(_sock);
+	//std::thread t1 = std::thread(cmdInputThread, _sock);
+	std::thread t1(cmdInputThread, _sock);
+	t1.detach(); // 使得主从线程分离，两个线程哪个先结束都互不影响，否则主线程先结束，从线程未结束就出错了。
 
-	while (true)
+	while (g_Run)
 	{
 		fd_set fdRead;
 		FD_ZERO(&fdRead);
 		FD_SET(_sock, &fdRead);
 
-		timeval t = { 0,0 };
+		timeval t = { 1,0 };
 		int ret = select(_sock + 1, &fdRead, 0, 0, &t);
 		if (ret < 0)
 		{
@@ -107,66 +150,16 @@ void startWinClient()
 		if (FD_ISSET(_sock, &fdRead))
 		{
 			FD_CLR(_sock, &fdRead);
-			int ret = prosessor(_sock);
+
+			int ret = prosessor(_sock);// 消息处理
 			if (ret == -1)
 			{
 				std::cout << "服务器断开\n";
 				break;
 			}
 		}
-
-		std::cout << "空闲！！！" << std::endl;
-		Sleep(1000);
-		Login login;
-		strcpy(login.userName, "Andy");
-		strcpy(login.passWord, "123456");
-		send(_sock, (char*)&login, login.dataLength, 0);
-
-		// char msgBuf[4096] = {};
-		// std::cin >> msgBuf;
-		//
-		//
-		// if (strcmp("exit",msgBuf) == 0)
-		// {
-		// 	std::cout << "客户端退出！\n";
-		// 	break;
-		// }else if (strcmp(msgBuf,"login") == 0)
-		// {
-		// 	// 3.发送命令
-		// 	Login login;
-		// 	strcpy_s(login.userName, "Andy");
-		// 	strcpy_s(login.passWord, "123456");
-		//
-		// 	send(_sock, (char*)&login, login.dataLength, 0);
-		//
-		// 	// 4.接收服务器信息 recv
-		// 	LoginResult loginResult = {};
-		// 	recv(_sock, (char*)&loginResult, sizeof(LoginResult), 0);
-		// 	std::cout << "loginResult : " << loginResult.result << std::endl;
-		//
-		//
-		// 	std::cout << "登录！\n";
-		// 	
-		// }else if (strcmp(msgBuf,"logout") == 0)
-		// {
-		// 	Logout logout;
-		// 	strcpy_s(logout.userName, "Andy");
-		//
-		// 	send(_sock, (char*)&logout, logout.dataLength, 0);
-		//
-		// 	// 4.接收服务器信息 recv
-		// 	LogoutResult logoutResult = {};
-		// 	recv(_sock, (char*)&logoutResult, sizeof(LogoutResult), 0);
-		// 	std::cout << "loginResult : " << logoutResult.result << std::endl;
-		// 			   
-		// 	std::cout << "退出！\n";
-		// 	
-		// }
-		// else
-		// {
-		// 	
-		// 	std::cout << "不支持指令 请重新输入 \n";
-		// }
+		//std::cout << "空闲！！！" << std::endl;
+		//Sleep(1000);
 	}
 
 	// 4.关闭套接字closesocket
