@@ -63,6 +63,7 @@ int prosessor(SOCKET _sock)
 	}
 	break;
 	}
+	return 0;
 }
 bool g_Run = true;
 void cmdInputThread(SOCKET sock)

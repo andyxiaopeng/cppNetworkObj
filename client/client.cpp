@@ -1,6 +1,6 @@
 
-#include "winClient.h"
+#include "baseClient.h"
 int main()
 {
-	startWinClient();
+	startBaseClient();
 }

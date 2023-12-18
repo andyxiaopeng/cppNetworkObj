@@ -1,6 +1,6 @@
 
-#include "winServer.h"
+#include "baseServer.h"
 int main()
 {
-	startWinServer();
+	startBaseServer();
 }
