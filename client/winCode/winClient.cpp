@@ -1,12 +1,10 @@
 #define  WIN32_LEAN_AND_MEAN // 这个宏尽量避免早期一些依赖库的引用
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-
-#include <iostream>
 #include <Windows.h>
 #include <WinSock2.h>
-
 #pragma comment(lib, "ws2_32.lib")
 
+#include <iostream>
 #include "dataType.h"
 #include <thread>
 
