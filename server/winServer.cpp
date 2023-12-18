@@ -31,32 +31,32 @@ int prosessor(SOCKET _cSock)
 	DataHeader* header = (DataHeader*)szRecv;
 	switch (header->cmd)
 	{
-	case CMD_LOGIN:
-	{
-		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-		Login* login = (Login*)szRecv;
-		std::cout << "收到命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << login->userName << "    passWord: " << login->passWord << "\n";
+		case CMD_LOGIN:
+		{
+			recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			Login* login = (Login*)szRecv;
+			std::cout << "收到 <客户端：" << _cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << login->userName << "    passWord: " << login->passWord << "\n";
 
-		// 先忽略密码判断
-		LoginResult ret;
-		send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
-	}
-	break;
-	case CMD_LOGOUT:
-	{
-		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-		Logout* logout = (Logout*)szRecv;
-		std::cout << "收到命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << logout->userName << "\n";
+			// 先忽略密码判断
+			LoginResult ret;
+			send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
+		}
+			break;
+		case CMD_LOGOUT:
+		{
+			recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			Logout* logout = (Logout*)szRecv;
+			std::cout << "收到 <客户端：" << _cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << logout->userName << "\n";
 
-		// 先忽略密码判断
-		LogoutResult ret;
-		send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
-	}
-	break;
-	default:
-		DataHeader header = { 0,CMD_ERROR };
-		send(_cSock, (char*)&header, sizeof(DataHeader), 0);
-		break;
+			// 先忽略密码判断
+			LogoutResult ret;
+			send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
+		}
+			break;
+		default:
+			DataHeader header = { 0,CMD_ERROR };
+			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			break;
 
 	}
 }
@@ -111,7 +111,7 @@ void startWinServer()
 		FD_ZERO(&fdWrite);
 		FD_ZERO(&fdExp);
 
-		FD_SET(_sock, &fdRead);
+		FD_SET(_sock, &fdRead);  // 将_sock文件描述符 放入 fdRead 集合
 		FD_SET(_sock, &fdWrite);
 		FD_SET(_sock, &fdExp);
 
@@ -123,15 +123,17 @@ void startWinServer()
 		/// nfds 是一个整数值，是指fd_set集合中所有的描述符范围，而不是数量
 		///	既是所有描述符最大值+1， 在windows中无所谓，传一个任意值都行
 		timeval t = { 0,0 }; // 两个0，代表没有需要等待时间 === 非阻塞。
-		int ret = select(_sock+1,&fdRead,&fdWrite,&fdExp,&t);
+		int ret = select(_sock+1,&fdRead,&fdWrite,&fdExp,&t); // select 是由内核提供的监听程序，客户端向服务端发送连接请求本质是一个读事件，而select就是监听这类读事件。
+		// ！！！ps：若文件描述符fd（也就是socket）没有任何时间发生，那么在调用select后，fd在集合中的值会被置为0；
+		// select()返回结果是fdRead\fdWrite\fdExp这三个集合发生事件的总数.
 		if (ret < 0)
 		{
 			std::cout << "select 有错误！";
 			break;
 		}
-		if (FD_ISSET(_sock,&fdRead)) // 
-		{
-			FD_CLR(_sock, &fdRead); // 清除   === 将fdRead.fd_count设为0
+		if (FD_ISSET(_sock,&fdRead)) // 判断文件描述符_sock是否在监听集合fdRead中，且返回fd在集合中的值
+		{// fd_Read集合有IO连接了，才启用Socket的 accept 来创建 cSocket，这样就避免了该程序一直被accept阻塞。
+			FD_CLR(_sock, &fdRead); // 清除   === 将文件描述符_sock在fdRead的值设为0
 
 			// 4.等待客户端连接
 			sockaddr_in clientAddr = {};		// 保存客户端地址信息的对象
@@ -147,6 +149,14 @@ void startWinServer()
 			}
 			else
 			{
+				// 广播通知其他客户端，有新客户端加入
+				for (int n = (int)g_clients.size() - 1; n >= 0; --n)
+				{
+					NewUserJoin nUserJoin = {};
+					nUserJoin.sock = _cSock;
+					send(g_clients[n], (char*)&nUserJoin, nUserJoin.dataLength, 0);
+				}
+
 				g_clients.push_back(_cSock);
 				std::cout << "ip: " << clientAddr.sin_addr.S_un.S_addr << "  端口：" << clientAddr.sin_port << "   连接成功！\n";
 			}
@@ -165,7 +175,7 @@ void startWinServer()
 			}
 		}
 
-		
+		std::cout << "空闲！！！" << std::endl;
 	}
 
 	for (int n = 0;n < (int)g_clients.size();++n)

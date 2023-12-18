@@ -1,7 +1,7 @@
 #pragma once
 
 // ÏûÏ¢Í·
-enum CMD { CMD_LOGIN, CMD_LOGIN_RESULT, CMD_LOGOUT, CMD_LOGOUT_RESULT, CMD_ERROR };
+enum CMD { CMD_LOGIN, CMD_LOGIN_RESULT, CMD_LOGOUT, CMD_LOGOUT_RESULT, CMD_NEW_USER_JOIN, CMD_ERROR };
 struct DataHeader
 {
 	short dataLength;
@@ -49,4 +49,15 @@ struct LogoutResult : public DataHeader
 		result = 0;
 	}
 	int result;
+};
+
+struct NewUserJoin : public DataHeader
+{
+	NewUserJoin()
+	{
+		dataLength = sizeof(NewUserJoin);
+		cmd = CMD_NEW_USER_JOIN;
+		sock = 0; // socket_id
+	}
+	int sock;
 };

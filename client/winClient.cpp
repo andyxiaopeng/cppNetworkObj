@@ -9,6 +9,51 @@
 
 #include "dataType.h"
 
+int prosessor(SOCKET _sock)
+{
+	// 缓冲区
+	char szRecv[1024] = {};
+
+	// 5.接收信息
+	int nLen = recv(_sock, szRecv, sizeof(DataHeader), 0);
+	if (nLen <= 0)
+	{
+		// 连接失败
+		std::cout << "与服务端连接断开\n";
+		return -1;
+	}
+
+	// 6.处理消息
+	DataHeader* header = (DataHeader*)szRecv;
+	switch (header->cmd)
+	{
+		case CMD_LOGIN_RESULT:
+		{
+			recv(_sock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			LoginResult* loginRet = (LoginResult*)szRecv;
+			std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   result: " << loginRet->result << "\n";
+
+		}
+			break;
+		case CMD_LOGOUT_RESULT:
+		{
+			recv(_sock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			LogoutResult* logoutRet = (LogoutResult*)szRecv;
+			std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   result: " << logoutRet->result << "\n";
+
+		}
+			break;
+		case CMD_NEW_USER_JOIN:
+		{
+			recv(_sock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			NewUserJoin* nUserRet = (NewUserJoin*)szRecv;
+			std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   newUserSocketID: " << nUserRet->sock << "\n";
+
+		}
+			break;
+	}
+}
+
 void startWinClient()
 {
 	WORD ver = MAKEWORD(2, 2); // winsocket的版本
@@ -48,49 +93,80 @@ void startWinClient()
 
 	while (true)
 	{
-		char msgBuf[4096] = {};
-		std::cin >> msgBuf;
-		if (strcmp("exit",msgBuf) == 0)
+		fd_set fdRead;
+		FD_ZERO(&fdRead);
+		FD_SET(_sock, &fdRead);
+
+		timeval t = { 0,0 };
+		int ret = select(_sock + 1, &fdRead, 0, 0, &t);
+		if (ret < 0)
 		{
-			std::cout << "客户端退出！\n";
+			std::cout << "select 有错误！";
 			break;
-		}else if (strcmp(msgBuf,"login") == 0)
-		{
-			// 3.发送命令
-			Login login;
-			strcpy_s(login.userName, "Andy");
-			strcpy_s(login.passWord, "123456");
-
-			send(_sock, (char*)&login, login.dataLength, 0);
-
-			// 4.接收服务器信息 recv
-			LoginResult loginResult = {};
-			recv(_sock, (char*)&loginResult, sizeof(LoginResult), 0);
-			std::cout << "loginResult : " << loginResult.result << std::endl;
-
-
-			std::cout << "登录！\n";
-			
-		}else if (strcmp(msgBuf,"logout") == 0)
-		{
-			Logout logout;
-			strcpy_s(logout.userName, "Andy");
-
-			send(_sock, (char*)&logout, logout.dataLength, 0);
-
-			// 4.接收服务器信息 recv
-			LogoutResult logoutResult = {};
-			recv(_sock, (char*)&logoutResult, sizeof(LogoutResult), 0);
-			std::cout << "loginResult : " << logoutResult.result << std::endl;
-					   
-			std::cout << "退出！\n";
-			
 		}
-		else
+		if (FD_ISSET(_sock, &fdRead))
 		{
-			
-			std::cout << "不支持指令 请重新输入 \n";
+			FD_CLR(_sock, &fdRead);
+			int ret = prosessor(_sock);
+			if (ret == -1)
+			{
+				std::cout << "服务器断开\n";
+				break;
+			}
 		}
+
+		std::cout << "空闲！！！" << std::endl;
+		Sleep(1000);
+		Login login;
+		strcpy(login.userName, "Andy");
+		strcpy(login.passWord, "123456");
+		send(_sock, (char*)&login, login.dataLength, 0);
+
+		// char msgBuf[4096] = {};
+		// std::cin >> msgBuf;
+		//
+		//
+		// if (strcmp("exit",msgBuf) == 0)
+		// {
+		// 	std::cout << "客户端退出！\n";
+		// 	break;
+		// }else if (strcmp(msgBuf,"login") == 0)
+		// {
+		// 	// 3.发送命令
+		// 	Login login;
+		// 	strcpy_s(login.userName, "Andy");
+		// 	strcpy_s(login.passWord, "123456");
+		//
+		// 	send(_sock, (char*)&login, login.dataLength, 0);
+		//
+		// 	// 4.接收服务器信息 recv
+		// 	LoginResult loginResult = {};
+		// 	recv(_sock, (char*)&loginResult, sizeof(LoginResult), 0);
+		// 	std::cout << "loginResult : " << loginResult.result << std::endl;
+		//
+		//
+		// 	std::cout << "登录！\n";
+		// 	
+		// }else if (strcmp(msgBuf,"logout") == 0)
+		// {
+		// 	Logout logout;
+		// 	strcpy_s(logout.userName, "Andy");
+		//
+		// 	send(_sock, (char*)&logout, logout.dataLength, 0);
+		//
+		// 	// 4.接收服务器信息 recv
+		// 	LogoutResult logoutResult = {};
+		// 	recv(_sock, (char*)&logoutResult, sizeof(LogoutResult), 0);
+		// 	std::cout << "loginResult : " << logoutResult.result << std::endl;
+		// 			   
+		// 	std::cout << "退出！\n";
+		// 	
+		// }
+		// else
+		// {
+		// 	
+		// 	std::cout << "不支持指令 请重新输入 \n";
+		// }
 	}
 
 	// 4.关闭套接字closesocket
