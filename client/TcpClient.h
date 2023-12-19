@@ -1,7 +1,6 @@
 #ifndef _TcpClient_
 #define _TcpClient_
 
-
 #ifdef _WIN32
 #define  WIN32_LEAN_AND_MEAN // 这个宏尽量避免早期一些依赖库的引用
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -45,12 +44,18 @@ public:
 	bool IsRun();
 
 	// 接收信息  处理粘包、拆分包
-	int RecvData(SOCKET _sock);
+	int RecvData();
 
 	// 响应网络信息
-	void OnNetMsg(char* szRecv, DataHeader* header);
+	void OnNetMsg(DataHeader* header);
+
+	int SendData(DataHeader* header);
 
 };
+
+
+void cmdInputThread(TcpClient* client);
+
 
 #endif
 

@@ -26,7 +26,7 @@ int TcpClient::InitSocket()
 		std::cout << "已存在<socket = "<< _sock <<">，现将关闭旧连接……\n" ;
 		Close();
 	}
-	SOCKET _sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (_sock == INVALID_SOCKET)
 	{// 创建失败
 		std::cout << "创建socket失败\n";
@@ -40,7 +40,7 @@ int TcpClient::InitSocket()
 	return ret;
 }
 
-int TcpClient::Connect(const char* ip = (const char*)"127.0.0.1",const unsigned short port = NULL)
+int TcpClient::Connect(const char* ip,const unsigned short port)
 {
 	int ret = 0;
 	if (_sock == INVALID_SOCKET) // 防止未初始化socket就进行连接操作。
@@ -108,7 +108,7 @@ bool TcpClient::OnRun()
 		{
 			FD_CLR(_sock, &fdRead);
 
-			ret = RecvData(_sock);// 消息处理
+			ret = RecvData();// 消息处理
 			if (ret == -1)
 			{
 				std::cout << "<socket:" << _sock << ">服务器断开\n";
@@ -129,7 +129,7 @@ bool TcpClient::IsRun()
 	return false;
 }
 
-int TcpClient::RecvData(SOCKET _sock)
+int TcpClient::RecvData()
 {
 	int ret = 0;
 	// 缓冲区
@@ -146,35 +146,92 @@ int TcpClient::RecvData(SOCKET _sock)
 	}
 
 	// 6.处理消息
-	DataHeader* header = (DataHeader*)szRecv;
+	DataHeader* header = (DataHeader*)szRecv; // 此处header的指针等szRecv这个缓冲区的指针，可以看成header指向缓冲区的第一个内存地址。
 	recv(_sock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-	OnNetMsg(szRecv,header);
+
+	OnNetMsg(header);
 
 	ret = 0;
 	return ret;
 }
 
-void TcpClient::OnNetMsg(char* szRecv,DataHeader* header)
+void TcpClient::OnNetMsg(DataHeader* header)
 {
 	switch (header->cmd)
 	{
 	case CMD_LOGIN_RESULT:
 	{
-		LoginResult* loginRet = (LoginResult*)szRecv;
+		LoginResult* loginRet = (LoginResult*)header;
 		std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   result: " << loginRet->result << "\n";
 	}
 	break;
 	case CMD_LOGOUT_RESULT:
 	{
-		LogoutResult* logoutRet = (LogoutResult*)szRecv;
+		LogoutResult* logoutRet = (LogoutResult*)header;
 		std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   result: " << logoutRet->result << "\n";
 	}
 	break;
 	case CMD_NEW_USER_JOIN:
 	{
-		NewUserJoin* nUserRet = (NewUserJoin*)szRecv;
+		NewUserJoin* nUserRet = (NewUserJoin*)header;
 		std::cout << "收到 <服务端：" << _sock << "> 消息： " << header->cmd << "   消息长度为：" << header->dataLength << "   newUserSocketID: " << nUserRet->sock << "\n";
 	}
 	break;
+	}
+}
+
+int TcpClient::SendData(DataHeader* header)
+{
+	if (IsRun() && header)
+	{
+		return send(_sock, (char*)header, header->dataLength, 0);
+	}
+	return  SOCKET_ERROR;
+}
+
+
+
+void cmdInputThread(TcpClient* client)
+{
+	while (true)
+	{
+		char msgBuf[4096] = {};
+		std::cin >> msgBuf;
+
+		if (strcmp("exit", msgBuf) == 0)
+		{
+			client->Close();
+			std::cout << " cmdInputThread线程结束，客户端退出！\n";
+			return;
+		}
+		else if (strcmp(msgBuf, "login") == 0)
+		{
+			// 3.发送命令
+			Login login;
+#ifdef _WIN32
+			strcpy_s(login.userName, "Andy");
+			strcpy_s(login.passWord, "123456");
+#else
+			strcpy(login.userName, "Andy");
+			strcpy(login.passWord, "123456");
+#endif
+
+			client->SendData(&login);
+
+		}
+		else if (strcmp(msgBuf, "logout") == 0)
+		{
+			Logout logout;
+#ifdef _WIN32
+			strcpy_s(logout.userName, "Andy");
+#else
+			strcpy(logout.userName, "Andy");
+#endif
+			client->SendData(&logout);
+		}
+		else
+		{
+			std::cout << "不支持指令 请重新输入 \n";
+		}
 	}
 }
