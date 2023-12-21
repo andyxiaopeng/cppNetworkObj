@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _dataType_
+#define _dataType_
 
 // ÏûÏ¢Í·
 enum CMD { CMD_LOGIN,CMD_LOGIN_RESULT, CMD_LOGOUT,CMD_LOGOUT_RESULT,CMD_NEW_USER_JOIN, CMD_ERROR };
@@ -61,3 +62,5 @@ struct NewUserJoin : public DataHeader
 	}
 	int sock;
 };
+
+#endif

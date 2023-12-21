@@ -1,5 +1,5 @@
-#ifndef _TcpClient_
-#define _TcpClient_
+#ifndef _TcpServer_
+#define _TcpServer_
 
 #ifdef _WIN32
 #define  WIN32_LEAN_AND_MEAN // 这个宏尽量避免早期一些依赖库的引用
@@ -19,24 +19,29 @@
 #include <iostream>
 #include "dataType.h"
 #include <thread>
+#include <vector>
 
-
-class TcpClient
+class TcpServer
 {
 private:
 	SOCKET _sock;
+	std::vector<SOCKET> _clients;
 public:
-	TcpClient();
-	virtual ~TcpClient(); // 虚析构
+	TcpServer();
+	virtual ~TcpServer();
 
 	// 初始化socket
-	int InitSocket();
-	// 建立连接
-	int Connect(const char* ip,const unsigned short port);
-	// 关闭连接
-	void Close();
+	SOCKET InitSocket();
+	// 绑定端口号
+	int Bind(const char* ip, unsigned short port);
+	// 监听端口号
+	int Listen(int n);
 
-	// 发送信息
+	// 接收客户端连接
+	SOCKET Accept();
+
+	// 关闭socket
+	void Close();
 
 	// 查询网络IO
 	bool OnRun();
@@ -44,18 +49,18 @@ public:
 	bool IsRun();
 
 	// 接收信息  处理粘包、拆分包
-	int RecvData();
+	int RecvData(SOCKET _cSock);
 
 	// 响应网络信息
-	virtual void OnNetMsg(DataHeader* header);
+	virtual void OnNetMsg(SOCKET _cSock, DataHeader* header);
 
-	int SendData(DataHeader* header);
+	// 发送信息
+	int SendData(SOCKET _cSock, DataHeader* header);
+
+	// 群发信息
+	void SendData2All(DataHeader* header);
 
 };
-
-
-void cmdInputThread(TcpClient* client);
-
 
 #endif
 

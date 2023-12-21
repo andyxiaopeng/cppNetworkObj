@@ -31,7 +31,7 @@ int prosessor(SOCKET _cSock)
 	if (nLen <= 0)
 	{
 		// 连接失败
-		std::cout << "客户端连接断开\n";
+		std::cout << "客户端: " << _cSock << "连接断开\n";
 		return -1;
 	}
 
@@ -200,14 +200,13 @@ void startBaseServer()
 			{
 				if (-1 == prosessor(g_clients[n])) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
 				{
-					auto iter = g_clients.begin();
+					auto iter = g_clients.begin() + n;
 					if (iter != g_clients.end())
 					{
-						g_clients.erase(iter);
+						g_clients.erase(iter); // 从容器擦除指定的元素
 					}
 				}
 			}
-
 		}
 
 		//std::cout << "空闲！！！" << std::endl;
