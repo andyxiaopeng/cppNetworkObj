@@ -72,7 +72,7 @@ int TcpServer::Bind(const char* ip,unsigned short port)
 	}
 	else
 	{
-		std::cout << "debug:: ip<" << _sin.sin_addr.S_un.S_addr << ">绑定成功！\n";
+		// std::cout << "debug:: ip<" << _sin.sin_addr.S_un.S_addr << ">绑定成功！\n";
 		std::cout << "端口<" << port << ">绑定成功！\n";
 	}
 	return ret;
@@ -163,9 +163,9 @@ bool TcpServer::OnRun()
 			FD_SET(_clients[n], &fdRead); // 把所有和client的socket链接都放入fdRead中
 #ifdef _WIN32
 #else
-			if (maxSock < g_clients[n])
+			if (maxSock < _clients[n])
 			{
-				maxSock = g_clients[n];
+				maxSock = _clients[n];
 			}
 #endif
 		}
@@ -296,10 +296,10 @@ void TcpServer::Close()
 	//清除Windows socket环境
 	WSACleanup();
 #else
-	for (int n = 0; n < (int)g_clients.size(); ++n)
+	for (int n = 0; n < (int)_clients.size(); ++n)
 	{
 		// 关闭全部socket
-		close(g_clients[n]);
+		close(_clients[n]);
 	}
 	close(_sock);
 #endif
