@@ -21,11 +21,55 @@
 #include <thread>
 #include <vector>
 
+//缓冲区最小单元大小
+#ifndef RECV_BUFF_SZIE
+#define RECV_BUFF_SZIE 102400
+#endif // !RECV_BUFF_SZIE
+
+class ClientSocket
+{
+public:
+	ClientSocket(SOCKET sockfd = INVALID_SOCKET)
+	{
+		_sockfd = sockfd;
+		memset(_szMsgBuf, 0, sizeof(_szMsgBuf));
+		_lastPos = 0;
+	}
+
+	SOCKET sockfd()
+	{
+		return _sockfd;
+	}
+
+	char* szMsgBuf()
+	{
+		return _szMsgBuf;
+	}
+
+	int getLastPos()
+	{
+		return _lastPos;
+	}
+	void setLastPos(int pos)
+	{
+		_lastPos = pos;
+	}
+
+private:
+	SOCKET _sockfd;
+	// 第二缓存区 消息缓存区
+	char _szMsgBuf[RECV_BUFF_SZIE * 10];
+	// 尾指针
+	int _lastPos;
+};
+
+
 class TcpServer
 {
 private:
 	SOCKET _sock;
-	std::vector<SOCKET> _clients;
+	std::vector<ClientSocket*> _clients;
+
 public:
 	TcpServer();
 	virtual ~TcpServer();
@@ -49,7 +93,7 @@ public:
 	bool IsRun();
 
 	// 接收信息  处理粘包、拆分包
-	int RecvData(SOCKET _cSock);
+	int RecvData(ClientSocket* pClient);
 
 	// 响应网络信息
 	virtual void OnNetMsg(SOCKET _cSock, DataHeader* header);

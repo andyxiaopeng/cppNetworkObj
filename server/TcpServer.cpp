@@ -99,13 +99,13 @@ SOCKET TcpServer::Accept()
 	// 4.等待客户端连接
 	sockaddr_in clientAddr = {};		// 保存客户端地址信息的对象
 	int nAddrLen = sizeof(sockaddr_in);	// 保存客户地址信息的类的长度
-	SOCKET _cSock = INVALID_SOCKET;
+	SOCKET cSock = INVALID_SOCKET;
 #ifdef _WIN32
-	_cSock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
+	cSock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
 #else
-	_cSock = accept(_sock, (sockaddr*)&clientAddr, (socklen_t*)&nAddrLen);
+	cSock = accept(_sock, (sockaddr*)&clientAddr, (socklen_t*)&nAddrLen);
 #endif
-	if (_cSock == INVALID_SOCKET)
+	if (cSock == INVALID_SOCKET)
 	{
 		// 连接失败
 		std::cout << "<socket:"<< _sock <<">连接失败！\n";
@@ -115,10 +115,10 @@ SOCKET TcpServer::Accept()
 	{
 		// 广播通知其他客户端，有新客户端加入
 		NewUserJoin nUserJoin = {};
-		nUserJoin.sock = _cSock;
+		nUserJoin.sock = cSock;
 		SendData2All(&nUserJoin);
 
-		_clients.push_back(_cSock);
+		_clients.push_back(new ClientSocket(cSock));
 #ifdef _WIN32
 		std::cout << "ip: " << clientAddr.sin_addr.S_un.S_addr << "  端口：" << clientAddr.sin_port << "   连接成功！\n";
 #else
@@ -126,7 +126,7 @@ SOCKET TcpServer::Accept()
 #endif
 
 	}
-	return _cSock;
+	return cSock;
 }
 
 bool TcpServer::IsRun()
@@ -160,19 +160,16 @@ bool TcpServer::OnRun()
 		SOCKET maxSock = _sock;
 		for (int n = (int)_clients.size() - 1; n >= 0; --n)
 		{
-			FD_SET(_clients[n], &fdRead); // 把所有和client的socket链接都放入fdRead中
-#ifdef _WIN32
-#else
-			if (maxSock < _clients[n])
+			FD_SET(_clients[n]->sockfd(), &fdRead); // 把所有和client的socket链接都放入fdRead中
+			if (maxSock < _clients[n]->sockfd())
 			{
-				maxSock = _clients[n];
+				maxSock = _clients[n]->sockfd();
 			}
-#endif
 		}
 
 		/// nfds 是一个整数值，是指fd_set集合中所有的描述符范围，而不是数量
 		///	既是所有描述符最大值+1， 在windows中无所谓，传一个任意值都行
-		timeval t = { 0,0 }; // 两个0，代表没有需要等待时间 === 非阻塞。
+		timeval t = { 1,0 }; // 两个0，代表没有需要等待时间 === 非阻塞。
 		int ret = select(maxSock + 1, &fdRead, &fdWrite, &fdExp, &t); // select 是由内核提供的监听程序，客户端向服务端发送连接请求本质是一个读事件，而select就是监听这类读事件。
 		// ！！！ps：若文件描述符fd（也就是socket）没有任何时间发生，那么在调用select后，fd在集合中的值会被置为0；
 		// select()返回结果是fdRead\fdWrite\fdExp这三个集合发生事件的总数.
@@ -191,13 +188,14 @@ bool TcpServer::OnRun()
 
 		for (int n = (int)_clients.size() - 1; n >= 0; --n)
 		{
-			if (FD_ISSET(_clients[n], &fdRead))
+			if (FD_ISSET(_clients[n]->sockfd(), &fdRead))
 			{
 				if (-1 == RecvData(_clients[n])) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
 				{
 					auto iter = _clients.begin() + n;
 					if (iter != _clients.end())
 					{
+						delete _clients[n];
 						_clients.erase(iter); // 从容器擦除指定的元素
 					}
 				}
@@ -209,58 +207,80 @@ bool TcpServer::OnRun()
 	return false;
 }
 
-int TcpServer::RecvData(SOCKET _cSock)
-{
-	// 缓冲区
-	char szRecv[1024] = {};
+// 缓冲区
+char _szRecv[RECV_BUFF_SZIE] = {};
 
+int TcpServer::RecvData(ClientSocket* pClient)
+{
 	// 5.接收信息
-	int nLen = recv(_cSock, szRecv, sizeof(DataHeader), 0);
+	int nLen = (int)recv(pClient->sockfd(), _szRecv, RECV_BUFF_SZIE, 0);
 	if (nLen <= 0)
 	{
 		// 连接失败
-		std::cout << "<客户端: " << _cSock << ">连接断开\n";
+		std::cout << "<客户端: " << pClient->sockfd() << ">连接断开\n";
 		return -1;
 	}
 
-	// 6.处理消息
-	DataHeader* header = (DataHeader*)szRecv;
-	recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-	OnNetMsg(_cSock, header);
+	// 接收缓冲区数据放入消息缓冲区
+	memcpy(pClient->szMsgBuf() + pClient->getLastPos(), _szRecv, nLen);
+	// 消息缓冲区尾指针后移
+	int newPos = pClient->getLastPos() + nLen;
+	pClient->setLastPos(newPos);
 
+	while (pClient->getLastPos() >= sizeof(DataHeader))  // 检查消息缓冲区内数据是否已经达到消息头长度
+	{
+		DataHeader* header = (DataHeader*)pClient->szMsgBuf();
+		if (pClient->getLastPos() >= header->dataLength)
+		{
+			// 计算消息缓冲区剩余数据的长度
+			int nSize = pClient->getLastPos() - header->dataLength;
+			// 处理消息
+			OnNetMsg(pClient->sockfd(), header);
+			// 将处理过的消息从消息缓存区移除
+			memcpy(pClient->szMsgBuf(), pClient->szMsgBuf() + header->dataLength, nSize);
+			// 尾指针前移
+			pClient->setLastPos(nSize);
+		}
+		else
+		{
+			// 剩余数据不够一条完整的消息
+			break;
+		}
+	}
 	return 0;
 }
 
-void TcpServer::OnNetMsg(SOCKET _cSock,DataHeader* header)
+void TcpServer::OnNetMsg(SOCKET cSock,DataHeader* header)
 {
 	switch (header->cmd)
 	{
 	case CMD_LOGIN:
 	{
 
-		Login* login = (Login*)header;
-		std::cout << "收到 <客户端：" << _cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << login->userName << "    passWord: " << login->passWord << "\n";
+		//Login* login = (Login*)header;
+		//std::cout << "收到 <客户端：" << cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << login->userName << "    passWord: " << login->passWord << "\n";
 
 		// 先忽略密码判断
 		LoginResult ret;
-		SendData(_cSock, (DataHeader*)&ret);
-		//send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
+		SendData(cSock, (DataHeader*)&ret);
+		//send(cSock, (char*)&ret, sizeof(LoginResult), 0);
 	}
 	break;
 	case CMD_LOGOUT:
 	{
-		Logout* logout = (Logout*)header;
-		std::cout << "收到 <客户端：" << _cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << logout->userName << "\n";
+		//Logout* logout = (Logout*)header;
+		//std::cout << "收到 <客户端：" << cSock << "> 命令： " << header->cmd << "   命令长度为：" << header->dataLength << "   userName: " << logout->userName << "\n";
 
 		// 先忽略密码判断
 		LogoutResult ret;
-		SendData(_cSock, (DataHeader*)&ret);
-		//send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
+		SendData(cSock, (DataHeader*)&ret);
+		//send(cSock, (char*)&ret, sizeof(LogoutResult), 0);
 	}
 	break;
 	default:
-		DataHeader header = { 0,CMD_ERROR };
-		send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+		std::cout << "未识别指令，error……,数据长度"<< header->dataLength <<"\n";
+		//DataHeader header;
+		//send(cSock, (char*)&header, sizeof(DataHeader), 0);
 		break;
 	}
 }
@@ -279,7 +299,7 @@ void TcpServer::SendData2All(DataHeader* header)
 	// 广播通知其他客户端，有新客户端加入
 	for (int n = (int)_clients.size() - 1; n >= 0; --n)
 	{
-		SendData(_clients[n], header);
+		SendData(_clients[n]->sockfd(), header);
 	}
 }
 
@@ -289,7 +309,8 @@ void TcpServer::Close()
 	for (int n = 0; n < (int)_clients.size(); ++n)
 	{
 		// 关闭全部socket
-		closesocket(_clients[n]);
+		closesocket(_clients[n]->sockfd());
+		delete _clients[n]; // new 会把资源放到堆内存空间（堆内存空间就是电脑的内存卡非常大的空间，如果不是new的话，会自动放到栈内存空间，这个比较小一般只有一两M。其次new了之后必须要记得delete释放掉这部分资源。）
 	}
 	// 8.关闭套接字 closesocket
 	closesocket(_sock);
@@ -299,9 +320,10 @@ void TcpServer::Close()
 	for (int n = 0; n < (int)_clients.size(); ++n)
 	{
 		// 关闭全部socket
-		close(_clients[n]);
+		close(_clients[n]->sockfd());
+		delete _clients[n];
 	}
 	close(_sock);
 #endif
-
+	_clients.clear(); // 清理一下vector容器 
 }

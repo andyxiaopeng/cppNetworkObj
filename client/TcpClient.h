@@ -19,12 +19,27 @@
 #include <iostream>
 #include "dataType.h"
 #include <thread>
+#include <vector>
+
 
 
 class TcpClient
 {
 private:
 	SOCKET _sock;
+
+	//缓冲区最小单元大小
+#ifndef RECV_BUFF_SZIE
+#define RECV_BUFF_SZIE 102400
+#endif // !RECV_BUFF_SZIE
+
+	//接收缓冲区
+	char _szRecv[RECV_BUFF_SZIE];
+	//第二缓冲区 消息缓冲区
+	char _szMsgBuf[RECV_BUFF_SZIE * 10];
+	//消息缓冲区的数据尾部位置
+	int _lastPos;
+
 public:
 	TcpClient();
 	virtual ~TcpClient(); // 虚析构
@@ -36,8 +51,6 @@ public:
 	// 关闭连接
 	void Close();
 
-	// 发送信息
-
 	// 查询网络IO
 	bool OnRun();
 
@@ -48,14 +61,13 @@ public:
 
 	// 响应网络信息
 	virtual void OnNetMsg(DataHeader* header);
-
+	// 发送信息
 	int SendData(DataHeader* header);
 
 };
 
 
-void cmdInputThread(TcpClient* client);
-
+//void cmdInputThread(TcpClient* client);
 
 #endif
 

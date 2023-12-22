@@ -2,15 +2,20 @@
 #define _dataType_
 
 // ÏûÏ¢Í·
-enum CMD { CMD_LOGIN,CMD_LOGIN_RESULT, CMD_LOGOUT,CMD_LOGOUT_RESULT,CMD_NEW_USER_JOIN, CMD_ERROR };
+enum CMD { CMD_LOGIN, CMD_LOGIN_RESULT, CMD_LOGOUT, CMD_LOGOUT_RESULT, CMD_NEW_USER_JOIN, CMD_ERROR };
 struct DataHeader
 {
+	DataHeader()
+	{
+		dataLength = sizeof(DataHeader);
+		cmd = CMD_ERROR;
+	}
 	short dataLength;
 	short cmd;
 };
 
 // DataPackage
-struct Login: public DataHeader
+struct Login : public DataHeader
 {
 	Login()
 	{
@@ -19,6 +24,7 @@ struct Login: public DataHeader
 	}
 	char userName[32];
 	char passWord[32];
+	char data[932];
 };
 
 struct LoginResult : public DataHeader
@@ -30,6 +36,7 @@ struct LoginResult : public DataHeader
 		result = 0;
 	}
 	int result;
+	char data[992];
 };
 struct Logout : public DataHeader
 {
@@ -62,5 +69,6 @@ struct NewUserJoin : public DataHeader
 	}
 	int sock;
 };
+
 
 #endif
