@@ -17,13 +17,15 @@
 #endif
 
 #include <iostream>
+#include  <iomanip>
 #include "dataType.h"
 #include <thread>
 #include <vector>
+#include "CELLTimestamp.hpp"
 
 //缓冲区最小单元大小
 #ifndef RECV_BUFF_SZIE
-#define RECV_BUFF_SZIE 102400
+#define RECV_BUFF_SZIE 10240
 #endif // !RECV_BUFF_SZIE
 
 class ClientSocket
@@ -69,6 +71,8 @@ class TcpServer
 private:
 	SOCKET _sock;
 	std::vector<ClientSocket*> _clients;
+	CELLTimestamp _tTime; // 计时
+	int _recvCount; // 计数
 
 public:
 	TcpServer();

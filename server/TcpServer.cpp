@@ -4,6 +4,7 @@
 TcpServer::TcpServer()
 {
 	_sock = INVALID_SOCKET;
+	_recvCount = 0;
 }
 
 TcpServer::~TcpServer()
@@ -252,6 +253,16 @@ int TcpServer::RecvData(ClientSocket* pClient)
 
 void TcpServer::OnNetMsg(SOCKET cSock,DataHeader* header)
 {
+	_recvCount++;
+	auto t1 = _tTime.getElapsedSend();
+	if (t1 >= 1.0)
+	{
+		std::cout << "time<"<< t1 << std::setprecision(6) <<">   " << ",socket<"<< _sock <<">   " << ",recvCount<"<< _recvCount <<">   \n";
+		_tTime.update();
+		_recvCount = 0;
+	}
+
+
 	switch (header->cmd)
 	{
 	case CMD_LOGIN:
