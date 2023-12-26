@@ -21,7 +21,7 @@ public:
 	}
 
 	// ªÒ»°√Î
-	double getElapsedSend()
+	double getElapsedSecond()
 	{
 		return getElapsedTimeInMicroSec() * 0.000001;
 	}

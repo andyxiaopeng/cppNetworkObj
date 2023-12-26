@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include "dataType.h"
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -62,7 +63,7 @@ public:
 	// 响应网络信息
 	virtual void OnNetMsg(DataHeader* header);
 	// 发送信息
-	int SendData(DataHeader* header);
+	int SendData(DataHeader* header, int nLens);
 
 };
 

@@ -218,13 +218,18 @@ void TcpClient::OnNetMsg(DataHeader* header)
 	}
 }
 
-int TcpClient::SendData(DataHeader* header)
+int TcpClient::SendData(DataHeader* header, int nLen)
 {
+	int ret = SOCKET_ERROR;
 	if (IsRun() && header)
 	{
-		return send(_sock, (char*)header, header->dataLength, 0);
+		ret = send(_sock, (const char*)header, nLen, 0);
+		if (SOCKET_ERROR == ret)
+		{
+			Close();
+		}
 	}
-	return  SOCKET_ERROR;
+	return ret;
 }
 
 
