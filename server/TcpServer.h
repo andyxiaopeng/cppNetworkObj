@@ -27,6 +27,7 @@
 #include <mutex>
 #include <atomic>
 #include <vector>
+#include <map>
 #include "CELLTimestamp.hpp"
 
 
@@ -81,6 +82,7 @@ private:
 	int _lastPos;
 };
 
+// 接口类，网络事件接口
 class INetEvent
 {
 public:
@@ -128,7 +130,6 @@ public:
 			// 8.关闭套接字 closesocket
 			closesocket(_sock);
 			// //清除Windows socket环境
-			// WSACleanup();
 #else
 			for (int n = 0; n < (int)_clients.size(); ++n)
 			{
@@ -148,8 +149,16 @@ public:
 		return _sock != INVALID_SOCKET;
 	}
 
+	//处理网络消息
+	//备份客户socket fd_set
+	fd_set _fdRead_bak;
+	//客户列表是否有变化
+	bool _clients_change;
+	SOCKET _maxSock;
+
 	bool OnRun()
 	{
+		_clients_change = true;
 		while (IsRun())
 		{
 			if(_clientsBuff.size() > 0)
@@ -158,9 +167,10 @@ public:
 				std::lock_guard<std::mutex> lock(_mutex);
 				for (auto pClient : _clientsBuff)
 				{
-					_clients.push_back(pClient);
+					_clients[pClient->sockfd()] = pClient;
 				}
 				_clientsBuff.clear();
+				_clients_change = true;
 			}
 			if (_clients.empty())
 			{
@@ -176,20 +186,34 @@ public:
 			// fd   ===  file describe   == 文件描述符
 			fd_set fdRead;
 			FD_ZERO(&fdRead);
-			SOCKET maxSock = _clients[0]->sockfd();
-			for (int n = (int)_clients.size() - 1; n >= 0; --n)
+
+			if (_clients_change)
 			{
-				FD_SET(_clients[n]->sockfd(), &fdRead); // 把所有和client的socket链接都放入fdRead中
-				if (maxSock < _clients[n]->sockfd())
+				_clients_change = false;
+				_maxSock = _clients.begin()->second->sockfd(); // map元素的first方法和second方法分别是求取map元素的key和value
+
+				for (auto iter : _clients)
 				{
-					maxSock = _clients[n]->sockfd();
+					FD_SET(iter.second->sockfd(), &fdRead);
+					if ((_maxSock < iter.second->sockfd()))
+					{
+						_maxSock = iter.second->sockfd();
+					}
 				}
+				// 循环检查了一次了之后吧fd集合的数据做个备份。后续没变化可以不再检查fd集合。
+				memcpy(&_fdRead_bak, &fdRead, sizeof(fd_set));
 			}
+			else
+			{
+				memcpy(&fdRead, &_fdRead_bak, sizeof(fd_set));
+			}
+
+
 
 			/// nfds 是一个整数值，是指fd_set集合中所有的描述符范围，而不是数量
 			///	既是所有描述符最大值+1， 在windows中无所谓，传一个任意值都行
 			//timeval t = { 0,10 }; // 两个0，代表没有需要等待时间 === 非阻塞。
-			int ret = select(maxSock + 1, &fdRead, nullptr, nullptr, nullptr); // select 是由内核提供的监听程序，客户端向服务端发送连接请求本质是一个读事件，而select就是监听这类读事件。
+			int ret = select(_maxSock + 1, &fdRead, nullptr, nullptr, nullptr); // select 是由内核提供的监听程序，客户端向服务端发送连接请求本质是一个读事件，而select就是监听这类读事件。
 			// ！！！ps：若文件描述符fd（也就是socket）没有任何时间发生，那么在调用select后，fd在集合中的值会被置为0；
 			// select()返回结果是fdRead\fdWrite\fdExp这三个集合发生事件的总数.
 			if (ret < 0)
@@ -197,27 +221,56 @@ public:
 				std::cout << "select任务 有错误！";
 				Close();
 				return false;
+			}else if (ret == 0)
+			{
+				continue;
 			}
 
-			for (int n = (int)_clients.size() - 1; n >= 0; --n)
+#ifdef _WIN32
+			for (int n = fdRead.fd_count - 1; n >= 0; --n)
 			{
-				if (FD_ISSET(_clients[n]->sockfd(), &fdRead))
+				auto iter = _clients.find(fdRead.fd_array[n]);
+				if (iter != _clients.end())
 				{
-					if (-1 == RecvData(_clients[n])) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
+					if (-1 == RecvData(iter->second)) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
 					{
-						auto iter = _clients.begin() + n;
-						if (iter != _clients.end())
+						if (_pNetEvent)
 						{
-							if (_pNetEvent)
-							{
-								_pNetEvent->OnNetLeave(_clients[n]); // 客户端离线通知
-							}
-							delete _clients[n];
-							_clients.erase(iter); // 从容器擦除指定的元素
+							_pNetEvent->OnNetLeave(iter->second); // 客户端离线通知
 						}
+						_clients_change = true;
+						_clients.erase(iter->first); // 从容器擦除指定的元素
+					}
+				}
+				else
+				{
+					std::cout << "error. if (iter != _clients.end())\n";
+				}
+			}
+#else
+
+			std::vector<ClientSocket*> temp;
+			for (auto iter : _clients)
+			{
+				if (FD_ISSET(iter.second->sockfd(), &fdRead))
+				{
+					if (-1 == RecvData(iter.second)) // prosessor 返回-1 表示该cSocket链接已经断开，所以需要从vector中将其删除
+					{
+						if (_pNetEvent)
+						{
+							_pNetEvent->OnNetLeave(iter.second); // 客户端离线通知
+						}
+						_clients_change = false;
+						temp.push_back(iter.second);
 					}
 				}
 			}
+			for (auto pClient : temp)
+			{
+				_clients.erase(pClient->sockfd());
+				delete pClient;
+			}
+#endif
 		}
 	}
 
@@ -289,7 +342,7 @@ public:
 private:
 	SOCKET _sock;
 	// 正式客户端队列
-	std::vector<ClientSocket*> _clients;
+	std::map<SOCKET,ClientSocket*> _clients;
 	// 缓存客户端队列
 	std::vector<ClientSocket*> _clientsBuff;
 	// 缓存队列锁
