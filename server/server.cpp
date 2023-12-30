@@ -30,7 +30,7 @@ public:
 	//只会被一个线程触发 安全
 	virtual void OnNetJoin(ClientSocket* pClient)
 	{
-		_clientCount++;
+		TcpServer::OnNetJoin(pClient);
 		//printf("client<%d> join\n", pClient->sockfd());
 	}
 
@@ -38,14 +38,14 @@ public:
 	//如果只开启1个cellServer就是安全的
 	virtual void OnNetLeave(ClientSocket* pClient)
 	{
-		_clientCount--;
+		TcpServer::OnNetLeave(pClient);
 		//printf("client<%d> leave\n", pClient->sockfd());
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
-	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
+	virtual void OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header)
 	{
-		_recvCount++;
+		TcpServer::OnNetMsg(pCellServer,pClient, header);
 		switch (header->cmd)
 		{
 		case CMD_LOGIN:
@@ -54,8 +54,11 @@ public:
 			Login* login = (Login*)header;
 			//printf("收到客户端<Socket=%d>请求：CMD_LOGIN,数据长度：%d,userName=%s PassWord=%s\n", cSock, login->dataLength, login->userName, login->PassWord);
 			//忽略判断用户密码是否正确的过程
-			LoginResult ret;
-			pClient->SendData(&ret);
+			//LoginResult ret;
+			//pClient->SendData(&ret);
+			LoginResult* ret = new LoginResult();
+			pCellServer->addSendTask(pClient, ret);
+
 		}
 		break;
 		case CMD_LOGOUT:
@@ -69,9 +72,7 @@ public:
 		break;
 		default:
 		{
-			printf("<socket=%d>收到未定义消息,数据长度：%d\n", pClient->sockfd(), header->dataLength);
-			//DataHeader ret;
-			//SendData(cSock, &ret);
+			std::cout << "<socket="<< pClient->sockfd() <<">收到未定义消息,数据长度："<< header->dataLength <<"\n";
 		}
 		break;
 		}

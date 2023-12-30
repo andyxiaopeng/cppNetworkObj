@@ -5,6 +5,7 @@ TcpServer::TcpServer()
 {
 	_sock = INVALID_SOCKET;
 	_recvCount = 0;
+	_msgCount = 0;
 	_clientCount = 0;
 }
 
@@ -191,8 +192,9 @@ void TcpServer::time4msg()
 	auto t1 = _tTime.getElapsedSecond();
 	if (t1 >= 1.0)
 	{
-		std::cout << "thread<"<< _cellServers.size() <<">,time<"<< t1 <<">,socket<"<< _sock <<">,clients<"<< (int)_clientCount <<">,recvCount<"<< (int)(_recvCount/t1) <<">\n";
+		std::cout << "thread<"<< _cellServers.size() <<">,time<"<< t1 <<">,socket<"<< _sock <<">,clients<"<< (int)_clientCount <<">,recv<"<< (int)(_recvCount/t1) <<">,msg<"<< (int)(_msgCount / t1) <<">\n";
 		_recvCount = 0;
+		_msgCount = 0;
 		_tTime.update();
 	}
 }
@@ -207,9 +209,15 @@ void TcpServer::OnNetLeave(ClientSocket* pClient)
 	_clientCount--;
 }
 
-void TcpServer::OnNetMsg(ClientSocket* pClient, DataHeader* header)
+void TcpServer::OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header)
+{
+	_msgCount++;
+}
+
+void TcpServer::OnNetRecv(ClientSocket* pClient)
 {
 	_recvCount++;
+	//printf("client<%d> leave\n", pClient->sockfd());
 }
 
 void TcpServer::Close()

@@ -3,6 +3,7 @@
 TcpClient::TcpClient()
 {
 	_sock = INVALID_SOCKET;
+	_isConnect = false;
 
 	//接收缓冲区
 	_szRecv[RECV_BUFF_SZIE] = {};
@@ -72,7 +73,8 @@ int TcpClient::Connect(const char* ip,const unsigned short port)
 	}
 	else
 	{
-		std::cout << "连接服务器成功\n";
+		//std::cout << "连接服务器成功\n";
+		_isConnect = true;
 	}
 	return  ret;
 }
@@ -92,20 +94,20 @@ void TcpClient::Close()
 		_sock = INVALID_SOCKET;
 		std::cout << "已退出\n";
 	}
+	_isConnect = false;
 }
 
 
 bool TcpClient::OnRun()
 {
-	bool ret = false;
 	if (IsRun())
 	{
 		fd_set fdRead;
 		FD_ZERO(&fdRead);
 		FD_SET(_sock, &fdRead);
 
-		timeval t = { 1,0 };
-		ret = select(_sock + 1, &fdRead, 0, 0, &t);
+		timeval t = { 0,0 };
+		int ret = select(_sock + 1, &fdRead, 0, 0, &t);
 		if (ret < 0)
 		{
 			std::cout << "<socket:"<< _sock <<">select 有错误！";
@@ -116,42 +118,37 @@ bool TcpClient::OnRun()
 		{
 			FD_CLR(_sock, &fdRead);
 
-			ret = RecvData();// 消息处理
-			if (ret == -1)
+			if (RecvData(_sock) == -1)
 			{
 				std::cout << "<socket:" << _sock << ">服务器断开\n";
-				ret = false;
-				return ret;
+				Close();
+				return false;
 			}
 		}
-		ret = true;
-	}
-	return ret;
-}
-bool TcpClient::IsRun()
-{
-	if (_sock != INVALID_SOCKET)
-	{
 		return true;
 	}
 	return false;
 }
-
-int TcpClient::RecvData()
+bool TcpClient::IsRun()
 {
-	int ret = 0;
+	return _sock != INVALID_SOCKET && _isConnect;
+	
+}
+
+int TcpClient::RecvData(SOCKET cSock)
+{
 	// 5.接收信息
-	int nLen = (int)recv(_sock, _szRecv, RECV_BUFF_SZIE, 0);// 第三个参数是第二个参数的大小
+	char* szRecv = _szMsgBuf + _lastPos;
+	int nLen = (int)recv(cSock, szRecv, (RECV_BUFF_SZIE * 5) - _lastPos, 0);// 第三个参数是第二个参数的大小
 	if (nLen <= 0)
 	{
 		// 连接失败
 		std::cout << "与服务端<socket:"<< _sock <<">连接断开\n";
-		ret = -1;
-		return ret;
+		return -1;
 	}
 	
 	//将收取到的数据拷贝到消息缓冲区
-	memcpy(_szMsgBuf + _lastPos, _szRecv, nLen); // 内存拷贝函数
+	//memcpy(_szMsgBuf + _lastPos, _szRecv, nLen); // 内存拷贝函数
 	//消息缓冲区的数据尾部位置后移
 	_lastPos += nLen;
 	
@@ -179,9 +176,7 @@ int TcpClient::RecvData()
 			break;
 		}
 	}
-
-	ret = 0;
-	return ret;
+	return 0;
 }
 
 void TcpClient::OnNetMsg(DataHeader* header)

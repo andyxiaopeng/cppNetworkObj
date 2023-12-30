@@ -24,10 +24,13 @@ void cmdInputThread()
 }
 
 // 客户端数量
-const int cCount = 4000;
+const int cCount = 10000;
 // 线程数量
 const int tCount = 4;
 TcpClient* client[cCount];
+
+std::atomic_int sendCount = 0;
+std::atomic_int readyCount = 0;
 
 void sendThread(int id)
 {
@@ -47,19 +50,20 @@ void sendThread(int id)
 	}
 	std::cout << "thread<"<< id <<">,Connect<begin="<< begin <<", end="<< end <<">\n";
 
-	std::chrono::milliseconds t(3000);
-	std::this_thread::sleep_for(t);
-
-	Login login[10];
-	for (int n = 0; n < 10; n++)
+	readyCount++;
+	while (readyCount < tCount)
 	{
-#ifdef _WIN32
+		std::chrono::milliseconds t(10);
+		std::this_thread::sleep_for(t);
+
+	}
+
+	Login login[1];
+	for (int n = 0; n < 1; n++)
+	{
 	strcpy(login[n].userName, "lyd");
 	strcpy(login[n].passWord, "lydmm");
-#else
-	strcpy(login[n].userName, "Andy");
-	strcpy(login[n].PassWord, "lydmm");
-#endif
+
 	}
 
 	const int nLen = sizeof(login);
@@ -67,7 +71,11 @@ void sendThread(int id)
 	{
 		for (int n = begin; n < end; ++n)
 		{
-			client[n]->SendData(login,nLen);
+			if (SOCKET_ERROR != client[n]->SendData(login, nLen))
+			{
+				// 发送成功；
+				sendCount++;
+			}
 			client[n]->OnRun();
 		}
 	}
@@ -94,8 +102,22 @@ int main()
 		t1.detach();
 	}
 
+	CELLTimestamp tTime;
+
+
+
 	while (g_bRun)
-		Sleep(100);
+	{
+		auto t = tTime.getElapsedSecond();
+		if (t >= 1.0)
+		{
+			std::cout << "thread<"<< tCount <<">,clients<"<< cCount <<">,time<"<< t <<">,send<"<< (int)(sendCount/t) <<">\n";
+			sendCount = 0;
+			tTime.update();
+		}
+		std::chrono::milliseconds tt(1);
+		std::this_thread::sleep_for(tt);
+	}
 
 	std::cout << "已退出\n";
 	getchar();

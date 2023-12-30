@@ -18,9 +18,11 @@
 
 #include <iostream>
 #include "dataType.h"
+#include "CELLTimestamp.hpp"
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <atomic>
 
 
 
@@ -28,6 +30,7 @@ class TcpClient
 {
 private:
 	SOCKET _sock;
+	bool _isConnect;
 
 	//缓冲区最小单元大小
 #ifndef RECV_BUFF_SZIE
@@ -58,7 +61,7 @@ public:
 	bool IsRun();
 
 	// 接收信息  处理粘包、拆分包
-	int RecvData();
+	int RecvData(SOCKET cSock);
 
 	// 响应网络信息
 	virtual void OnNetMsg(DataHeader* header);
