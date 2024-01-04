@@ -114,12 +114,14 @@ SOCKET TcpServer::Accept()
 	}
 	else
 	{
-		addClientToCellServer(new ClientSocket(cSock));
+	//	addClientToCellServer(new ClientSocket(cSock));
+		ClientSocketPtr tm = std::make_shared<ClientSocket>(cSock);
+		addClientToCellServer(tm);
 	}
 	return cSock;
 }
 
-void TcpServer::addClientToCellServer(ClientSocket* pClient)
+void TcpServer::addClientToCellServer(ClientSocketPtr& pClient)
 {
 	//查找客户数量最少的CellServer消息处理对象
 	auto pMinServer = _cellServers[0];
@@ -138,7 +140,9 @@ void TcpServer::Start(int nCellServer)
 {
 	for (int n = 0; n < nCellServer; n++)
 	{
-		auto ser = new CellServer(_sock);
+		//std::shared_ptr<CellServer> ser1 = std::make_shared<CellServer>(_sock);
+		//auto ser = new CellServer(_sock);
+		auto ser = std::make_shared<CellServer>(_sock);
 		_cellServers.push_back(ser);
 		//注册网络事件接受对象
 		ser->setEventObj(this);
@@ -199,22 +203,22 @@ void TcpServer::time4msg()
 	}
 }
 
-void TcpServer::OnNetJoin(ClientSocket* pClient)
+void TcpServer::OnNetJoin(ClientSocketPtr& pClient)
 {
 	_clientCount++;
 }
 
-void TcpServer::OnNetLeave(ClientSocket* pClient)
+void TcpServer::OnNetLeave(ClientSocketPtr& pClient)
 {
 	_clientCount--;
 }
 
-void TcpServer::OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header)
+void TcpServer::OnNetMsg(CellServer* pCellServer, ClientSocketPtr& pClient, DataHeader* header)
 {
 	_msgCount++;
 }
 
-void TcpServer::OnNetRecv(ClientSocket* pClient)
+void TcpServer::OnNetRecv(ClientSocketPtr& pClient)
 {
 	_recvCount++;
 	//printf("client<%d> leave\n", pClient->sockfd());

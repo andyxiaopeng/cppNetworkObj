@@ -1,4 +1,4 @@
-
+#include "Alloctor.h"
 #include "TcpServer.h"
 
 
@@ -28,7 +28,7 @@ class MyServer : public TcpServer
 {
 public:
 	//只会被一个线程触发 安全
-	virtual void OnNetJoin(ClientSocket* pClient)
+	virtual void OnNetJoin(ClientSocketPtr& pClient)
 	{
 		TcpServer::OnNetJoin(pClient);
 		//printf("client<%d> join\n", pClient->sockfd());
@@ -36,14 +36,14 @@ public:
 
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
-	virtual void OnNetLeave(ClientSocket* pClient)
+	virtual void OnNetLeave(ClientSocketPtr& pClient)
 	{
 		TcpServer::OnNetLeave(pClient);
 		//printf("client<%d> leave\n", pClient->sockfd());
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
-	virtual void OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header)
+	virtual void OnNetMsg(CellServer* pCellServer, ClientSocketPtr& pClient, DataHeader* header)
 	{
 		TcpServer::OnNetMsg(pCellServer,pClient, header);
 		switch (header->cmd)
@@ -56,7 +56,8 @@ public:
 			//忽略判断用户密码是否正确的过程
 			//LoginResult ret;
 			//pClient->SendData(&ret);
-			LoginResult* ret = new LoginResult();
+			//LoginResult* ret = new LoginResult();
+			DataHeaderPtr ret = std::make_shared<LoginResult>();
 			pCellServer->addSendTask(pClient, ret);
 
 		}

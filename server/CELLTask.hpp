@@ -21,20 +21,20 @@ public:
 	{
 		
 	}
-
 };
 
+typedef std::shared_ptr<CellTask> CellTaskPtr;
 class CellTaskServer
 {
 private:
 	// 任务数据
-	std::list<CellTask*> _tasks;
+	std::list<CellTaskPtr> _tasks;
 	// 任务数据缓冲区
-	std::list<CellTask*> _tasksBuf;
+	std::list<CellTaskPtr> _tasksBuf;
 	// 改变数据缓冲区需要加锁
 	std::mutex _mutex;
 public:
-	void addTask(CellTask* task)
+	void addTask(CellTaskPtr& task)
 	{
 		std::lock_guard<std::mutex> lg(_mutex);
 		_tasksBuf.push_back(task);
@@ -72,7 +72,7 @@ protected:
 			for (auto pTask : _tasks)
 			{
 				pTask->doTask();
-				delete pTask; // 做完一个任务就要销毁该任务，（ps： 因为每一个任务都是new出来的，每一个new都必须有相应的delete）
+				//delete pTask; // 做完一个任务就要销毁该任务，（ps： 因为每一个任务都是new出来的，每一个new都必须有相应的delete）
 			}
 			// 清空任务
 			_tasks.clear();
