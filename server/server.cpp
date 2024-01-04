@@ -59,7 +59,8 @@ public:
 			//LoginResult* ret = new LoginResult();
 			DataHeaderPtr ret = std::make_shared<LoginResult>();
 			pCellServer->addSendTask(pClient, ret);
-
+			//pCellServer->addSendTask(pClient, (DataHeaderPtr)ret);
+			//pCellServer->addSendTask(pClient, (DataHeaderPtr)std::make_shared<LoginResult>());
 		}
 		break;
 		case CMD_LOGOUT:
