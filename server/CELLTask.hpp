@@ -1,10 +1,11 @@
-#ifndef _CELLTask_hpp_
-#define _CELLTask_hpp_
+#ifndef _CELL_TASK_H_
+#define _CELL_TASK_H_
 
-#include <thread>
-#include <list>
-#include <mutex>
+#include<thread>
+#include<mutex>
+#include<list>
 
+//任务类型-基类
 class CellTask
 {
 public:
@@ -12,72 +13,78 @@ public:
 	{
 
 	}
+
+	//虚析构
 	virtual ~CellTask()
 	{
-		
-	}
 
+	}
+	//执行任务
 	virtual void doTask()
 	{
-		
+
 	}
+private:
+
 };
 
-typedef std::shared_ptr<CellTask> CellTaskPtr;
-class CellTaskServer
+//执行任务的服务类型
+class CellTaskServer 
 {
 private:
-	// 任务数据
-	std::list<CellTaskPtr> _tasks;
-	// 任务数据缓冲区
-	std::list<CellTaskPtr> _tasksBuf;
-	// 改变数据缓冲区需要加锁
+	//任务数据
+	std::list<CellTask*> _tasks;
+	//任务数据缓冲区
+	std::list<CellTask*> _tasksBuf;
+	//改变数据缓冲区时需要加锁
 	std::mutex _mutex;
 public:
-	void addTask(CellTaskPtr& task)
+	//添加任务
+	void addTask(CellTask* task)
 	{
-		std::lock_guard<std::mutex> lg(_mutex);
+		std::lock_guard<std::mutex> lock(_mutex);
 		_tasksBuf.push_back(task);
 	}
+	//启动工作线程
 	void Start()
 	{
-		std::thread t(std::mem_fn(&CellTaskServer::OnRun), this);
+		//线程
+		std::thread t(std::mem_fn(&CellTaskServer::OnRun),this);
 		t.detach();
 	}
 protected:
+	//工作函数
 	void OnRun()
 	{
 		while (true)
 		{
-			// 从缓冲区取出数据
+			//从缓冲区取出数据
 			if (!_tasksBuf.empty())
 			{
-				std::lock_guard<std::mutex> lg(_mutex);
+				std::lock_guard<std::mutex> lock(_mutex);
 				for (auto pTask : _tasksBuf)
 				{
 					_tasks.push_back(pTask);
 				}
 				_tasksBuf.clear();
 			}
-
-			// 如果没有任务
+			//如果没有任务
 			if (_tasks.empty())
 			{
-				// 休息一下
 				std::chrono::milliseconds t(1);
 				std::this_thread::sleep_for(t);
 				continue;
 			}
-			// 处理任务
+			//处理任务
 			for (auto pTask : _tasks)
 			{
 				pTask->doTask();
-				//delete pTask; // 做完一个任务就要销毁该任务，（ps： 因为每一个任务都是new出来的，每一个new都必须有相应的delete）
+				delete pTask;
 			}
-			// 清空任务
+			//清空任务
 			_tasks.clear();
 		}
-	}
 
+	}
 };
-#endif
+#endif // !_CELL_TASK_H_
