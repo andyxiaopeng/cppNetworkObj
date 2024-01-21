@@ -1,8 +1,8 @@
 #ifndef _I_NET_EVENT_HPP_
 #define _I_NET_EVENT_HPP_
 
-#include"Cell.hpp"
-#include"CellClient.hpp"
+#include"CELL.hpp"
+#include"CELLClient.hpp"
 //×Ô¶¨Òå
 class CellServer;
 
