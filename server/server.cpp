@@ -102,7 +102,17 @@ int main()
 		//printf("空闲时间处理其它业务..\n");
 	}
 	server.Close();
+	//printf("---。\n");
+	//server.Close();
 	printf("已退出。\n");
-	getchar();
+
+	/*
+	CellTaskServer task;
+	task.Start();
+		Sleep(100);
+	task.Close();
+	*/
+	//while (true)
+	//	Sleep(1);
 	return 0;
 }
