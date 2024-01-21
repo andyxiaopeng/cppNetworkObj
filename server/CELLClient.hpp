@@ -149,7 +149,7 @@ public:
 		_dtHeart += dt;
 		if (_dtHeart >= CLIENT_HREAT_DEAD_TIME)
 		{
-			printf("checkHeart dead:s=%d,time=%ld\n",_sockfd, _dtHeart);
+			printf("checkHeart dead:s=%d,time=%d\n",_sockfd, _dtHeart);
 			return true;
 		}
 		return false;

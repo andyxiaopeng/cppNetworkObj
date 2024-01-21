@@ -179,6 +179,7 @@ public:
 						if (_pNetEvent)
 							_pNetEvent->OnNetLeave(iter.second);
 						_clients_change = true;
+						close(iter->first);
 						temp.push_back(iter.second);
 					}
 				}
