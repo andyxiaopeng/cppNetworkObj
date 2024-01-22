@@ -35,6 +35,10 @@
 
 > 有SELECT、IOCP、EPOLL这三种IO复用的网络模型。
 >
+> [Select、Poll、Epoll的使用和区别，多种IO的区别_io多路复用,epoll和select的区别-CSDN博客](https://blog.csdn.net/iuu77/article/details/129836824)
+>
+> [c++——iocp模型-CSDN博客](https://blog.csdn.net/www_dong/article/details/125667928)
+>
 > select网络模型并不是某个平台、某个系统下独有的，select模型和IOcp和epoll不同，select模型几乎在所有平台、系统都有相类似的实现，是一个较为古老的模型。
 
 服务器的服务相当于有三种：
