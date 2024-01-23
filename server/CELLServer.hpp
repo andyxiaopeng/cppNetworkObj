@@ -71,12 +71,16 @@ public:
 			}
 
 			//伯克利套接字 BSD socket
-			fd_set fdRead;//描述符（socket） 集合
-						  //清理集合
-			FD_ZERO(&fdRead);
+			//描述符（socket） 集合
+			fd_set fdRead;
+			fd_set fdWrite;
+			//fd_set fdExc;
+
 			if (_clients_change)
 			{
 				_clients_change = false;
+				//清理集合
+				FD_ZERO(&fdRead);
 				//将描述符（socket）加入集合
 				_maxSock = _clients.begin()->second->sockfd();
 				for (auto iter : _clients)
@@ -93,10 +97,13 @@ public:
 				memcpy(&fdRead, &_fdRead_bak, sizeof(fd_set));
 			}
 
+			memcpy(&fdWrite, &_fdRead_bak, sizeof(fd_set));
+			//memcpy(&fdExc, &_fdRead_bak, sizeof(fd_set));
+
 			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
 			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
 			timeval t{ 0,1 };
-			int ret = select(_maxSock + 1, &fdRead, nullptr, nullptr, &t);
+			int ret = select(_maxSock + 1, &fdRead, &fdWrite, nullptr, &t);
 			if (ret < 0)
 			{
 				printf("CELLServer%d.OnRun.select Error exit\n", _id);
@@ -108,6 +115,13 @@ public:
 			//	continue;
 			//}
 			ReadData(fdRead);
+			WriteData(fdWrite);
+			//WriteData(fdExc);
+			//printf("CELLServer%d.OnRun.select: fdRead=%d,fdWrite=%d\n", _id, fdRead.fd_count, fdWrite.fd_count);
+			//if (fdExc.fd_count > 0)
+			//{
+			//	printf("###fdExc=%d\n", fdExc.fd_count);
+			//}
 			CheckTime();
 		}
 		printf("CELLServer%d.OnRun exit\n", _id);
@@ -134,10 +148,53 @@ public:
 				_clients.erase(iterOld);
 				continue;
 			}
-			//定时发送检测
-			iter->second->checkSend(dt);
+
+			////定时发送检测
+			//iter->second->checkSend(dt);
+
 			iter++;
 		}
+	}
+	void OnClientLeave(CELLClient* pClient)
+	{
+		if (_pNetEvent)
+			_pNetEvent->OnNetLeave(pClient);
+		_clients_change = true;
+		delete pClient;
+	}
+
+	void WriteData(fd_set& fdWrite)
+	{
+#ifdef _WIN32
+		for (int n = 0; n < fdWrite.fd_count; n++)
+		{
+			auto iter = _clients.find(fdWrite.fd_array[n]);
+			if (iter != _clients.end())
+			{
+				if (-1 == iter->second->SendDataReal())
+				{
+					OnClientLeave(iter->second);
+					_clients.erase(iter);
+				}
+			}
+		}
+#else
+		for (auto iter = _clients.begin(); iter != _clients.end(); )
+		{
+			if (FD_ISSET(iter->second->sockfd(), &fdWrite))
+			{
+				if (-1 == iter->second->SendDataReal())
+				{
+					OnClientLeave(iter->second);
+					auto iterOld = iter;
+					iter++;
+					_clients.erase(iterOld);
+					continue;
+				}
+			}
+			iter++;
+		}
+#endif
 	}
 
 	void ReadData(fd_set& fdRead)
@@ -150,15 +207,9 @@ public:
 				{
 					if (-1 == RecvData(iter->second))
 					{
-						if (_pNetEvent)
-							_pNetEvent->OnNetLeave(iter->second);
-						_clients_change = true;
-						delete iter->second;
+						OnClientLeave(iter->second);
 						_clients.erase(iter);
 					}
-				}
-				else {
-					printf("error. if (iter != _clients.end())\n");
 				}
 			}
 #else
@@ -168,10 +219,7 @@ public:
 				{
 					if (-1 == RecvData(iter->second))
 					{
-						if (_pNetEvent)
-							_pNetEvent->OnNetLeave(iter->second);
-						_clients_change = true;
-						delete iter->second;
+						OnClientLeave(iter->second);
 						auto iterOld = iter;
 						iter++;
 						_clients.erase(iterOld);

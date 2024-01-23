@@ -33,10 +33,13 @@ std::atomic_int readyCount = 0;
 
 void recvThread(int begin, int end)
 {
+	//CELLTimestamp t;
 	while (g_bRun)
 	{
 		for (int n = begin; n < end; n++)
 		{
+			//if (t.getElapsedSecond() > 3.0 && n == begin)
+			//	continue;
 			client[n]->OnRun();
 		}
 	}
@@ -56,13 +59,15 @@ void sendThread(int id)
 	}
 	for (int n = begin; n < end; n++)
 	{
-		//win10 "192.168.1.110" i5 6300
+		//win10 "192.168.1.102" i5 6300
 		//win7 "192.168.1.114" i7 2670qm
 		//127.0.0.1
-		//39.108.13.69 
+		//39.108.13.69
+		//ubuntu vm 192.168.74.141
+		//macOS vm 192.168.74.134
 		client[n]->Connect("192.168.1.102", 4567);
 	}
-
+	//ĞÄÌø¼ì²â ËÀÍö¼ÆÊ± 
 	printf("thread<%d>,Connect<begin=%d, end=%d>\n", id, begin, end);
 
 	readyCount++;
@@ -75,8 +80,8 @@ void sendThread(int id)
 	std::thread t1(recvThread, begin, end);
 	t1.detach();
 	//
-	Login login[10];
-	for (int n = 0; n < 10; n++)
+	netmsg_Login login[1];
+	for (int n = 0; n < 1; n++)
 	{
 		strcpy(login[n].userName, "lyd");
 		strcpy(login[n].PassWord, "lydmm");
@@ -91,8 +96,8 @@ void sendThread(int id)
 				sendCount++;
 			}
 		}
-		//std::chrono::milliseconds t(10);
-		//std::this_thread::sleep_for(t);
+		std::chrono::milliseconds t(99);
+		std::this_thread::sleep_for(t);
 	}
 
 	for (int n = begin; n < end; n++)

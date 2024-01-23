@@ -65,30 +65,26 @@ public:
 		_lastPos = pos;
 	}
 
-	//立即发送数据
-	void SendDataReal(netmsg_DataHeader* header)
-	{
-		SendData(header);
-		SendDataReal();
-	}
-
 	//立即将发送缓冲区的数据发送给客户端
 	int SendDataReal()
 	{
-		int ret = SOCKET_ERROR;
+		int ret = 0;
 		//缓冲区有数据
-		if (_lastSendPos > 0 && SOCKET_ERROR != _sockfd)
+		if (_lastSendPos > 0 && INVALID_SOCKET != _sockfd)
 		{
 			//发送数据
 			ret = send(_sockfd, _szSendBuf, _lastSendPos, 0);
 			//数据尾部位置清零
 			_lastSendPos = 0;
 			//
+			_sendBuffFullCount = 0;
+			//
 			resetDTSend();
 		}
 		return ret;
 	}
 
+	//缓冲区的控制根据业务需求的差异而调整
 	//发送数据
 	int SendData(netmsg_DataHeader* header)
 	{
@@ -98,37 +94,21 @@ public:
 		//要发送的数据
 		const char* pSendData = (const char*)header;
 
-		while (true)
+		if (_lastSendPos + nSendLen <= SEND_BUFF_SZIE)
 		{
-			if (_lastSendPos + nSendLen >= SEND_BUFF_SZIE)
+			//将要发送的数据 拷贝到发送缓冲区尾部
+			memcpy(_szSendBuf + _lastSendPos, pSendData, nSendLen);
+			//计算数据尾部位置
+			_lastSendPos += nSendLen;
+
+			if (_lastSendPos == SEND_BUFF_SZIE)
 			{
-				//计算可拷贝的数据长度
-				int nCopyLen = SEND_BUFF_SZIE - _lastSendPos;
-				//拷贝数据
-				memcpy(_szSendBuf + _lastSendPos, pSendData, nCopyLen);
-				//计算剩余数据位置
-				pSendData += nCopyLen;
-				//计算剩余数据长度
-				nSendLen -= nCopyLen;
-				//发送数据
-				ret = send(_sockfd, _szSendBuf, SEND_BUFF_SZIE, 0);
-				//数据尾部位置清零
-				_lastSendPos = 0;
-				//
-				resetDTSend();
-				//发送错误
-				if (SOCKET_ERROR == ret)
-				{
-					return ret;
-				}
+				_sendBuffFullCount++;
 			}
-			else {
-				//将要发送的数据 拷贝到发送缓冲区尾部
-				memcpy(_szSendBuf + _lastSendPos, pSendData, nSendLen);
-				//计算数据尾部位置
-				_lastSendPos += nSendLen;
-				break;
-			}
+
+			return nSendLen;
+		}else{
+			_sendBuffFullCount++;
 		}
 		return ret;
 	}
@@ -177,7 +157,6 @@ private:
 	char _szMsgBuf[RECV_BUFF_SZIE];
 	//消息缓冲区的数据尾部位置
 	int _lastPos;
-
 	//第二缓冲区 发送缓冲区
 	char _szSendBuf[SEND_BUFF_SZIE];
 	//发送缓冲区的数据尾部位置
@@ -186,6 +165,8 @@ private:
 	time_t _dtHeart;
 	//上次发送消息数据的时间
 	time_t _dtSend;
+	//发送缓冲区遇到写满情况计数
+	int _sendBuffFullCount = 0;
 };
 
 #endif // !_CELLClient_HPP_

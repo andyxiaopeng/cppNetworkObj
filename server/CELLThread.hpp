@@ -6,7 +6,7 @@
 class CELLThread
 {
 private:
-	typedef std::function<void(CELLThread*)> EventCall; // c++11提供的函数指针
+	typedef std::function<void(CELLThread*)> EventCall;
 public:
 	//启动线程
 	void Start(
