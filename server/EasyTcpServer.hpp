@@ -5,11 +5,11 @@
 #include"CELLClient.hpp"
 #include"CELLServer.hpp"
 #include"INetEvent.hpp"
+#include"CELLNetWork.hpp"
 
 #include<thread>
 #include<mutex>
 #include<atomic>
-
 
 class EasyTcpServer : public INetEvent
 {
@@ -44,19 +44,7 @@ public:
 	//初始化Socket
 	SOCKET InitSocket()
 	{
-#ifdef _WIN32
-		//启动Windows socket 2.x环境
-		WORD ver = MAKEWORD(2, 2);
-		WSADATA dat;
-		WSAStartup(ver, &dat);
-#endif
-//
-#ifndef _WIN32
-		//if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-		//	return (1);
-		//忽略异常信号，默认情况会导致进程终止
-		signal(SIGPIPE, SIG_IGN);
-#endif
+		CELLNetWork::Init();
 		if (INVALID_SOCKET != _sock)
 		{
 			CELLLog::Info("warning, initSocket close old socket<%d>...\n", (int)_sock);
@@ -196,8 +184,6 @@ public:
 			//关闭套节字socket
 #ifdef _WIN32
 			closesocket(_sock);
-			//清除Windows socket环境
-			WSACleanup();
 #else
 			close(_sock);
 #endif

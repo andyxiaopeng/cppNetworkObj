@@ -1,4 +1,4 @@
-#ifndef _CELL_BUFFER_HPP_
+ï»¿#ifndef _CELL_BUFFER_HPP_
 #define _CELL_BUFFER_HPP_
 
 #include"CELL.hpp"
@@ -28,13 +28,13 @@ public:
 
 	bool push(const char* pData, int nLen)
 	{
-		////Ð´Èë´óÁ¿Êý¾Ý²»Ò»¶¨Òª·Åµ½ÄÚ´æÖÐ
-		////Ò²¿ÉÒÔ´æ´¢µ½Êý¾Ý¿â»òÕß´ÅÅÌµÈ´æ´¢Æ÷ÖÐ
+		////å†™å…¥å¤§é‡æ•°æ®ä¸ä¸€å®šè¦æ”¾åˆ°å†…å­˜ä¸­
+		////ä¹Ÿå¯ä»¥å­˜å‚¨åˆ°æ•°æ®åº“æˆ–è€…ç£ç›˜ç­‰å­˜å‚¨å™¨ä¸­
 		//if (_nLast + nLen > _nSize)
 		//{
-		//	//ÐèÒªÐ´ÈëµÄÊý¾Ý´óÓÚ¿ÉÓÃ¿Õ¼ä
+		//	//éœ€è¦å†™å…¥çš„æ•°æ®å¤§äºŽå¯ç”¨ç©ºé—´
 		//	int n = (_nLast + nLen) - _nSize;
-		//	//ÍØÕ¹BUFF
+		//	//æ‹“å±•BUFF
 		//	if (n < 8192)
 		//		n = 8192;
 		//	char* buff = new char[_nSize+n];
@@ -45,9 +45,9 @@ public:
 
 		if (_nLast + nLen <= _nSize)
 		{
-			//½«Òª·¢ËÍµÄÊý¾Ý ¿½±´µ½·¢ËÍ»º³åÇøÎ²²¿
+			//å°†è¦å‘é€çš„æ•°æ® æ‹·è´åˆ°å‘é€ç¼“å†²åŒºå°¾éƒ¨
 			memcpy(_pBuff + _nLast, pData, nLen);
-			//¼ÆËãÊý¾ÝÎ²²¿Î»ÖÃ
+			//è®¡ç®—æ•°æ®å°¾éƒ¨ä½ç½®
 			_nLast += nLen;
 
 			if (_nLast == SEND_BUFF_SZIE)
@@ -79,12 +79,12 @@ public:
 	int write2socket(SOCKET sockfd)
 	{
 		int ret = 0;
-		//»º³åÇøÓÐÊý¾Ý
+		//ç¼“å†²åŒºæœ‰æ•°æ®
 		if (_nLast > 0 && INVALID_SOCKET != sockfd)
 		{
-			//·¢ËÍÊý¾Ý
+			//å‘é€æ•°æ®
 			ret = send(sockfd, _pBuff, _nLast, 0);
-			//Êý¾ÝÎ²²¿Î»ÖÃÇåÁã
+			//æ•°æ®å°¾éƒ¨ä½ç½®æ¸…é›¶
 			_nLast = 0;
 			//
 			_fullCount = 0;
@@ -96,7 +96,7 @@ public:
 	{
 		if (_nSize - _nLast > 0)
 		{
-			//½ÓÊÕ¿Í»§¶ËÊý¾Ý
+			//æŽ¥æ”¶å®¢æˆ·ç«¯æ•°æ®
 			char* szRecv = _pBuff + _nLast;
 			int nLen = (int)recv(sockfd, szRecv, _nSize - _nLast, 0);
 			//CELLLog::Info("nLen=%d\n", nLen);
@@ -104,7 +104,7 @@ public:
 			{
 				return nLen;
 			}
-			//ÏûÏ¢»º³åÇøµÄÊý¾ÝÎ²²¿Î»ÖÃºóÒÆ
+			//æ¶ˆæ¯ç¼“å†²åŒºçš„æ•°æ®å°¾éƒ¨ä½ç½®åŽç§»
 			_nLast += nLen;
 			return nLen;
 		}
@@ -113,26 +113,26 @@ public:
 
 	bool hasMsg()
 	{
-		//ÅÐ¶ÏÏûÏ¢»º³åÇøµÄÊý¾Ý³¤¶È´óÓÚÏûÏ¢Í·netmsg_DataHeader³¤¶È
+		//åˆ¤æ–­æ¶ˆæ¯ç¼“å†²åŒºçš„æ•°æ®é•¿åº¦å¤§äºŽæ¶ˆæ¯å¤´netmsg_DataHeaderé•¿åº¦
 		if (_nLast >= sizeof(netmsg_DataHeader))
 		{
-			//ÕâÊ±¾Í¿ÉÒÔÖªµÀµ±Ç°ÏûÏ¢µÄ³¤¶È
+			//è¿™æ—¶å°±å¯ä»¥çŸ¥é“å½“å‰æ¶ˆæ¯çš„é•¿åº¦
 			netmsg_DataHeader* header = (netmsg_DataHeader*)_pBuff;
-			//ÅÐ¶ÏÏûÏ¢»º³åÇøµÄÊý¾Ý³¤¶È´óÓÚÏûÏ¢³¤¶È
+			//åˆ¤æ–­æ¶ˆæ¯ç¼“å†²åŒºçš„æ•°æ®é•¿åº¦å¤§äºŽæ¶ˆæ¯é•¿åº¦
 			return _nLast >= header->dataLength;
 		}
 		return false;
 	}
 private:
-	//µÚ¶þ»º³åÇø ·¢ËÍ»º³åÇø
+	//ç¬¬äºŒç¼“å†²åŒº å‘é€ç¼“å†²åŒº
 	char* _pBuff = nullptr;
-	//¿ÉÒÔÓÃÁ´±í»ò¶ÓÁÐÀ´¹ÜÀí»º³åÊý¾Ý¿é
+	//å¯ä»¥ç”¨é“¾è¡¨æˆ–é˜Ÿåˆ—æ¥ç®¡ç†ç¼“å†²æ•°æ®å—
 	//list<char*> _pBuffList;
-	//»º³åÇøµÄÊý¾ÝÎ²²¿Î»ÖÃ£¬ÒÑÓÐÊý¾Ý³¤¶È
+	//ç¼“å†²åŒºçš„æ•°æ®å°¾éƒ¨ä½ç½®ï¼Œå·²æœ‰æ•°æ®é•¿åº¦
 	int _nLast = 0;
-	//»º³åÇø×ÜµÄ¿Õ¼ä´óÐ¡£¬×Ö½Ú³¤¶È
+	//ç¼“å†²åŒºæ€»çš„ç©ºé—´å¤§å°ï¼Œå­—èŠ‚é•¿åº¦
 	int _nSize = 0;
-	//»º³åÇøÐ´Âú´ÎÊý¼ÆÊý
+	//ç¼“å†²åŒºå†™æ»¡æ¬¡æ•°è®¡æ•°
 	int _fullCount = 0;
 };
 

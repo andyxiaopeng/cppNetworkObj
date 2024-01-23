@@ -1,4 +1,4 @@
-#ifndef _CELL_LOG_HPP_
+﻿#ifndef _CELL_LOG_HPP_
 #define _CELL_LOG_HPP_
 
 #include"CELL.hpp"
@@ -10,7 +10,7 @@ class CELLLog
 	//Debug
 	//Warring
 	//Error
-public:
+private:
 	CELLLog()
 	{
 		_taskServer.Start();
