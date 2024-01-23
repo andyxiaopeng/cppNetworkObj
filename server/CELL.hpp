@@ -23,6 +23,8 @@
 #include"MessageHeader.hpp"
 #include"CELLTimestamp.hpp"
 #include"CELLTask.hpp"
+#include"CELLLog.hpp"
+
 //
 #include<stdio.h>
 

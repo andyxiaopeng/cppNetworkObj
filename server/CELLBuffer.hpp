@@ -99,7 +99,7 @@ public:
 			//接收客户端数据
 			char* szRecv = _pBuff + _nLast;
 			int nLen = (int)recv(sockfd, szRecv, _nSize - _nLast, 0);
-			//printf("nLen=%d\n", nLen);
+			//CELLLog::Info("nLen=%d\n", nLen);
 			if (nLen <= 0)
 			{
 				return nLen;

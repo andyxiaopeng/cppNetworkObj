@@ -59,16 +59,16 @@ public:
 #endif
 		if (INVALID_SOCKET != _sock)
 		{
-			printf("warning, initSocket close old socket<%d>...\n", (int)_sock);
+			CELLLog::Info("warning, initSocket close old socket<%d>...\n", (int)_sock);
 			Close();
 		}
 		_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == _sock)
 		{
-			printf("error, create socket failed...\n");
+			CELLLog::Info("error, create socket failed...\n");
 		}
 		else {
-			printf("create socket<%d> success...\n", (int)_sock);
+			CELLLog::Info("create socket<%d> success...\n", (int)_sock);
 		}
 		return _sock;
 	}
@@ -103,10 +103,10 @@ public:
 		int ret = bind(_sock, (sockaddr*)&_sin, sizeof(_sin));
 		if (SOCKET_ERROR == ret)
 		{
-			printf("error, bind port<%d> failed...\n", port);
+			CELLLog::Info("error, bind port<%d> failed...\n", port);
 		}
 		else {
-			printf("bind port<%d> success...\n", port);
+			CELLLog::Info("bind port<%d> success...\n", port);
 		}
 		return ret;
 	}
@@ -118,10 +118,10 @@ public:
 		int ret = listen(_sock, n);
 		if (SOCKET_ERROR == ret)
 		{
-			printf("error, listen socket<%d> failed...\n",_sock);
+			CELLLog::Info("error, listen socket<%d> failed...\n",_sock);
 		}
 		else {
-			printf("listen port<%d> success...\n", _sock);
+			CELLLog::Info("listen port<%d> success...\n", _sock);
 		}
 		return ret;
 	}
@@ -140,7 +140,7 @@ public:
 #endif
 		if (INVALID_SOCKET == cSock)
 		{
-			printf("error, accept INVALID_SOCKET...\n");
+			CELLLog::Info("error, accept INVALID_SOCKET...\n");
 		}
 		else
 		{
@@ -184,7 +184,7 @@ public:
 	//关闭Socket
 	void Close()
 	{
-		printf("EasyTcpServer.Close begin\n");
+		CELLLog::Info("EasyTcpServer.Close begin\n");
 		_thread.Close();
 		if (_sock != INVALID_SOCKET)
 		{
@@ -203,7 +203,7 @@ public:
 #endif
 			_sock = INVALID_SOCKET;
 		}
-		printf("EasyTcpServer.Close end\n");
+		CELLLog::Info("EasyTcpServer.Close end\n");
 	}
 
 	//cellServer 4 多个线程触发 不安全
@@ -211,14 +211,14 @@ public:
 	virtual void OnNetJoin(CELLClient* pClient)
 	{
 		_clientCount++;
-		//printf("client<%d> join\n", pClient->sockfd());
+		//CELLLog::Info("client<%d> join\n", pClient->sockfd());
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
 	virtual void OnNetLeave(CELLClient* pClient)
 	{
 		_clientCount--;
-		//printf("client<%d> leave\n", pClient->sockfd());
+		//CELLLog::Info("client<%d> leave\n", pClient->sockfd());
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
@@ -230,7 +230,7 @@ public:
 	virtual void OnNetRecv(CELLClient* pClient)
 	{
 		_recvCount++;
-		//printf("client<%d> leave\n", pClient->sockfd());
+		//CELLLog::Info("client<%d> leave\n", pClient->sockfd());
 	}
 private:
 	//处理网络消息
@@ -251,7 +251,7 @@ private:
 			int ret = select(_sock + 1, &fdRead, 0, 0, &t); //
 			if (ret < 0)
 			{
-				printf("EasyTcpServer.OnRun select exit.\n");
+				CELLLog::Info("EasyTcpServer.OnRun select exit.\n");
 				pThread->Exit();
 				break;
 			}
@@ -270,7 +270,7 @@ private:
 		auto t1 = _tTime.getElapsedSecond();
 		if (t1 >= 1.0)
 		{
-			printf("thread<%d>,time<%lf>,socket<%d>,clients<%d>,recv<%d>,msg<%d>\n", (int)_cellServers.size(), t1, _sock, (int)_clientCount, (int)(_recvCount / t1), (int)(_msgCount / t1));
+			CELLLog::Info("thread<%d>,time<%lf>,socket<%d>,clients<%d>,recv<%d>,msg<%d>\n", (int)_cellServers.size(), t1, _sock, (int)_clientCount, (int)(_recvCount / t1), (int)(_msgCount / t1));
 			_recvCount = 0;
 			_msgCount = 0;
 			_tTime.update();
