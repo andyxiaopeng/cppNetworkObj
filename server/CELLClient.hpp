@@ -2,6 +2,7 @@
 #define _CELLClient_HPP_
 
 #include"CELL.hpp"
+#include"CELLBuffer.hpp"
 
 //客户端心跳检测死亡计时时间
 #define CLIENT_HREAT_DEAD_TIME 60000
@@ -16,16 +17,13 @@ public:
 	//所属serverid
 	int serverId = -1;
 public:
-	CELLClient(SOCKET sockfd = INVALID_SOCKET)
+	CELLClient(SOCKET sockfd = INVALID_SOCKET):
+		_sendBuff(SEND_BUFF_SZIE),
+		_recvBuff(RECV_BUFF_SZIE)
 	{
 		static int n = 1;
 		id = n++;
 		_sockfd = sockfd;
-		memset(_szMsgBuf, 0, RECV_BUFF_SZIE);
-		_lastPos = 0;
-
-		memset(_szSendBuf, 0, SEND_BUFF_SZIE);
-		_lastSendPos = 0;
 
 		resetDTHeart();
 		resetDTSend();
@@ -51,66 +49,43 @@ public:
 		return _sockfd;
 	}
 
-	char* msgBuf()
+	int RecvData()
 	{
-		return _szMsgBuf;
+		return _recvBuff.read4socket(_sockfd);
 	}
 
-	int getLastPos()
+	bool hasMsg()
 	{
-		return _lastPos;
+		return _recvBuff.hasMsg();
 	}
-	void setLastPos(int pos)
+
+	netmsg_DataHeader* front_msg()
 	{
-		_lastPos = pos;
+		return (netmsg_DataHeader*)_recvBuff.data();
+	}
+
+	void pop_front_msg()
+	{
+		if(hasMsg())
+			_recvBuff.pop(front_msg()->dataLength);
 	}
 
 	//立即将发送缓冲区的数据发送给客户端
 	int SendDataReal()
 	{
-		int ret = 0;
-		//缓冲区有数据
-		if (_lastSendPos > 0 && INVALID_SOCKET != _sockfd)
-		{
-			//发送数据
-			ret = send(_sockfd, _szSendBuf, _lastSendPos, 0);
-			//数据尾部位置清零
-			_lastSendPos = 0;
-			//
-			_sendBuffFullCount = 0;
-			//
-			resetDTSend();
-		}
-		return ret;
+		resetDTSend();
+		return _sendBuff.write2socket(_sockfd);
 	}
 
 	//缓冲区的控制根据业务需求的差异而调整
 	//发送数据
 	int SendData(netmsg_DataHeader* header)
 	{
-		int ret = SOCKET_ERROR;
-		//要发送的数据长度
-		int nSendLen = header->dataLength;
-		//要发送的数据
-		const char* pSendData = (const char*)header;
-
-		if (_lastSendPos + nSendLen <= SEND_BUFF_SZIE)
+		if (_sendBuff.push((const char*)header, header->dataLength))
 		{
-			//将要发送的数据 拷贝到发送缓冲区尾部
-			memcpy(_szSendBuf + _lastSendPos, pSendData, nSendLen);
-			//计算数据尾部位置
-			_lastSendPos += nSendLen;
-
-			if (_lastSendPos == SEND_BUFF_SZIE)
-			{
-				_sendBuffFullCount++;
-			}
-
-			return nSendLen;
-		}else{
-			_sendBuffFullCount++;
+			return header->dataLength;
 		}
-		return ret;
+		return SOCKET_ERROR;
 	}
 
 	void resetDTHeart()
@@ -153,23 +128,16 @@ public:
 private:
 	// socket fd_set  file desc set
 	SOCKET _sockfd;
-	//第二缓冲区 消息缓冲区
-	char _szMsgBuf[RECV_BUFF_SZIE];
-	//消息缓冲区的数据尾部位置
-	int _lastPos;
-	//第二缓冲区 发送缓冲区
-	char _szSendBuf[SEND_BUFF_SZIE];
-	//发送缓冲区的数据尾部位置
-	int _lastSendPos;
+	//第二缓冲区 接收消息缓冲区
+	CELLBuffer _recvBuff;
+	//发送缓冲区
+	CELLBuffer _sendBuff;
 	//心跳死亡计时
 	time_t _dtHeart;
-	//上次发送消息数据的时间
+	//上次发送消息数据的时间 
 	time_t _dtSend;
 	//发送缓冲区遇到写满情况计数
 	int _sendBuffFullCount = 0;
 };
 
 #endif // !_CELLClient_HPP_
-
-
-

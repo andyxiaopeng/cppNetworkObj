@@ -235,40 +235,20 @@ public:
 	int RecvData(CELLClient* pClient)
 	{
 		//接收客户端数据
-		char* szRecv = pClient->msgBuf() + pClient->getLastPos();
-		int nLen = (int)recv(pClient->sockfd(), szRecv, (RECV_BUFF_SZIE)-pClient->getLastPos(), 0);
-		_pNetEvent->OnNetRecv(pClient);
-		//printf("nLen=%d\n", nLen);
+		int nLen = pClient->RecvData();
 		if (nLen <= 0)
 		{
 			return -1;
 		}
-		//将收取到的数据拷贝到消息缓冲区
-		//memcpy(pClient->msgBuf() + pClient->getLastPos(), _szRecv, nLen);
-		//消息缓冲区的数据尾部位置后移
-		pClient->setLastPos(pClient->getLastPos() + nLen);
-
-		//判断消息缓冲区的数据长度大于消息头netmsg_DataHeader长度
-		while (pClient->getLastPos() >= sizeof(netmsg_DataHeader))
+		//触发<接收到网络数据>事件
+		_pNetEvent->OnNetRecv(pClient);
+		//循环 判断是否有消息需要处理
+		while (pClient->hasMsg())
 		{
-			//这时就可以知道当前消息的长度
-			netmsg_DataHeader* header = (netmsg_DataHeader*)pClient->msgBuf();
-			//判断消息缓冲区的数据长度大于消息长度
-			if (pClient->getLastPos() >= header->dataLength)
-			{
-				//消息缓冲区剩余未处理数据的长度
-				int nSize = pClient->getLastPos() - header->dataLength;
-				//处理网络消息
-				OnNetMsg(pClient, header);
-				//将消息缓冲区剩余未处理数据前移
-				memcpy(pClient->msgBuf(), pClient->msgBuf() + header->dataLength, nSize);
-				//消息缓冲区的数据尾部位置前移
-				pClient->setLastPos(nSize);
-			}
-			else {
-				//消息缓冲区剩余数据不够一条完整消息
-				break;
-			}
+			//处理网络消息
+			OnNetMsg(pClient, pClient->front_msg());
+			//移除消息队列（缓冲区）最前的一条数据
+			pClient->pop_front_msg();
 		}
 		return 0;
 	}
