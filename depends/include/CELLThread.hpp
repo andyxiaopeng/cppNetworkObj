@@ -5,6 +5,12 @@
 
 class CELLThread
 {
+public:
+	static void Sleep(time_t dt)
+	{
+		std::chrono::milliseconds t(dt);
+		std::this_thread::sleep_for(t);
+	}
 private:
 	typedef std::function<void(CELLThread*)> EventCall;
 public:
