@@ -1,7 +1,50 @@
-#include"EasyTcpClient.hpp"
+ï»¿#include"EasyTcpClient.hpp"
 #include"CELLTimestamp.hpp"
 #include<thread>
 #include<atomic>
+
+
+class MyClient : public EasyTcpClient
+{
+public:
+	//å“åº”ç½‘ç»œæ¶ˆæ¯
+	virtual void OnNetMsg(netmsg_DataHeader* header)
+	{
+		switch (header->cmd)
+		{
+		case CMD_LOGIN_RESULT:
+		{
+			netmsg_LoginR* login = (netmsg_LoginR*)header;
+			//CELLLog::Info("<socket=%d> recv msgTypeï¼šCMD_LOGIN_RESULT\n", (int)_pClient->sockfd());
+		}
+		break;
+		case CMD_LOGOUT_RESULT:
+		{
+			netmsg_LogoutR* logout = (netmsg_LogoutR*)header;
+			//CELLLog::Info("<socket=%d> recv msgTypeï¼šCMD_LOGOUT_RESULT\n", (int)_pClient->sockfd());
+		}
+		break;
+		case CMD_NEW_USER_JOIN:
+		{
+			netmsg_NewUserJoin* userJoin = (netmsg_NewUserJoin*)header;
+			//CELLLog::Info("<socket=%d> recv msgTypeï¼šCMD_NEW_USER_JOIN\n", (int)_pClient->sockfd());
+		}
+		break;
+		case CMD_ERROR:
+		{
+			CELLLog::Info("<socket=%d> recv msgTypeï¼šCMD_ERROR\n", (int)_pClient->sockfd());
+		}
+		break;
+		default:
+		{
+			CELLLog::Info("error, <socket=%d> recv undefine msgType\n", (int)_pClient->sockfd());
+		}
+		}
+	}
+private:
+
+};
+
 
 bool g_bRun = true;
 void cmdThread()
@@ -13,23 +56,23 @@ void cmdThread()
 		if (0 == strcmp(cmdBuf, "exit"))
 		{
 			g_bRun = false;
-			printf("ÍË³öcmdThreadÏß³Ì\n");
+			CELLLog::Info("é€€å‡ºcmdThreadçº¿ç¨‹\n");
 			break;
 		}
 		else {
-			printf("²»Ö§³ÖµÄÃüÁî¡£\n");
+			CELLLog::Info("ä¸æ”¯æŒçš„å‘½ä»¤ã€‚\n");
 		}
 	}
 }
 
-//¿Í»§¶ËÊıÁ¿
+//å®¢æˆ·ç«¯æ•°é‡
 const int cCount = 1000;
-//·¢ËÍÏß³ÌÊıÁ¿
+//å‘é€çº¿ç¨‹æ•°é‡
 const int tCount = 4;
-//¿Í»§¶ËÊı×é
+//å®¢æˆ·ç«¯æ•°ç»„
 EasyTcpClient* client[cCount];
-std::atomic_int sendCount = 0;
-std::atomic_int readyCount = 0;
+std::atomic_int sendCount(0);
+std::atomic_int readyCount(0);
 
 void recvThread(int begin, int end)
 {
@@ -47,15 +90,15 @@ void recvThread(int begin, int end)
 
 void sendThread(int id)
 {
-	printf("thread<%d>,start\n", id);
-	//4¸öÏß³Ì ID 1~4
+	CELLLog::Info("thread<%d>,start\n", id);
+	//4ä¸ªçº¿ç¨‹ ID 1~4
 	int c = cCount / tCount;
 	int begin = (id - 1)*c;
 	int end = id*c;
 
 	for (int n = begin; n < end; n++)
 	{
-		client[n] = new EasyTcpClient();
+		client[n] = new MyClient();
 	}
 	for (int n = begin; n < end; n++)
 	{
@@ -67,12 +110,12 @@ void sendThread(int id)
 		//macOS vm 192.168.74.134
 		client[n]->Connect("192.168.1.102", 4567);
 	}
-	//ĞÄÌø¼ì²â ËÀÍö¼ÆÊ± 
-	printf("thread<%d>,Connect<begin=%d, end=%d>\n", id, begin, end);
+	//å¿ƒè·³æ£€æµ‹ æ­»äº¡è®¡æ—¶ 
+	CELLLog::Info("thread<%d>,Connect<begin=%d, end=%d>\n", id, begin, end);
 
 	readyCount++;
 	while (readyCount < tCount)
-	{//µÈ´ıÆäËüÏß³Ì×¼±¸ºÃ·¢ËÍÊı¾İ
+	{//ç­‰å¾…å…¶å®ƒçº¿ç¨‹å‡†å¤‡å¥½å‘é€æ•°æ®
 		std::chrono::milliseconds t(10);
 		std::this_thread::sleep_for(t);
 	}
@@ -87,11 +130,12 @@ void sendThread(int id)
 		strcpy(login[n].PassWord, "lydmm");
 	}
 	const int nLen = sizeof(login);
+
 	while (g_bRun)
 	{
 		for (int n = begin; n < end; n++)
 		{
-			if (SOCKET_ERROR != client[n]->SendData(login, nLen))
+			if (SOCKET_ERROR != client[n]->SendData(login))
 			{
 				sendCount++;
 			}
@@ -106,16 +150,17 @@ void sendThread(int id)
 		delete client[n];
 	}
 
-	printf("thread<%d>,exit\n", id);
+	CELLLog::Info("thread<%d>,exit\n", id);
 }
 
 int main()
 {
-	//Æô¶¯UIÏß³Ì
+	CELLLog::Instance().setLogPath("clientLog.txt", "w");
+	//å¯åŠ¨UIçº¿ç¨‹
 	std::thread t1(cmdThread);
 	t1.detach();
 
-	//Æô¶¯·¢ËÍÏß³Ì
+	//å¯åŠ¨å‘é€çº¿ç¨‹
 	for (int n = 0; n < tCount; n++)
 	{
 		std::thread t1(sendThread,n+1);
@@ -129,13 +174,14 @@ int main()
 		auto t = tTime.getElapsedSecond();
 		if (t >= 1.0)
 		{
-			printf("thread<%d>,clients<%d>,time<%lf>,send<%d>\n",tCount, cCount,t,(int)(sendCount/ t));
+			CELLLog::Info("thread<%d>,clients<%d>,time<%lf>,send<%d>\n",tCount, cCount,t,(int)(sendCount/ t));
 			sendCount = 0;
 			tTime.update();
 		}
-		Sleep(1);
+		std::chrono::milliseconds ts(1);
+		std::this_thread::sleep_for(ts);
 	}
 
-	printf("ÒÑÍË³ö¡£\n");
+	CELLLog::Info("å·²é€€å‡ºã€‚\n");
 	return 0;
 }
