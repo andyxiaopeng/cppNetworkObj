@@ -733,6 +733,8 @@ int main(int argc, char* args[]){
   
   :: any是字符串，但是不需要加双引号，直接默认为字符串，但是也可以加上双引号。
   rem 下面两种方式都是设置变量的方法，但是第二种在前面加@符号，可以阻止该行语句在控制台输出，因为bat语句默认在控制台显示输出。
+  :: 在脚本最前面也可以写  echo off 这个命令，从而实现不显式输出命令的效果。
+  
   set Ip=any
   :: set Ip="any"
   @set port=4567
@@ -743,6 +745,19 @@ int main(int argc, char* args[]){
   
   :: pause是将脚本暂停在此处，作用是上述server程序运行结束之后，可以将控制台暂停在此处，方便查看server程序输出的信息。
   @pause
+  ```
+
+  ```bash
+  @echo off
+  
+  :: 这是将参数人为的组成一个key-value的形式
+  set cmd="Ip=any"
+  set cmd=%cmd% port=4567
+  
+  server %cmd%
+  
+  :: pause是将脚本暂停在此处，作用是上述server程序运行结束之后，可以将控制台暂停在此处，方便查看server程序输出的信息。
+  pause
   ```
 
 - Linux\Unix 批处理脚本 .sh
@@ -761,5 +776,101 @@ int main(int argc, char* args[]){
   
   read -p ".. press any key to exit .." var
   ```
+
+  ```shell
+  # 这是将参数人为的组成一个key-value的形式
+  cmd="Ip=any"
+  cmd=$cmd" port=4567"
+  
+  server $cmd
+  
+  read -p ".. press any key to exit .." var
+  ```
+  
+  
+
+## Linux的最大文件数量限制 - FD_SETSIZE - 文件描述符的数量
+
+> FD_SETSIZE 是 文件描述符的数量。 也就是等价于socket的数量。
+>
+> windows的 FD_SETSIZE 是允许设置不限制大小的数值。而Linux的 FD_SETSIZE 无法随意更改，其最大限制是1024个文件（即socket数量）。需要使得Linux突破系统规定的最大文件描述符数量则需要深入的进行一些系统修改。
+>
+> 
+
+- 修改**Linux**系统的进程打开**文件最大数量的限制**
+
+  使用命令 ``` ulimit -a ``` 即可查询linux系统的限制信息。也可以直接使用 ```ulimit -n```来查询。
+
+  其中```open files```这一行信息就是一个进程管理的最大文件数量。
+
+  ```shell
+  # 在控制台输入以下命令即可修改文件最大数量的限制
+  # ulimit -n 数量
+  ulimit -n 10240
+  #上述指令将open files 限制从1024 修改为 10240
+  
+  # 每次terminal终端关闭之后，open files会变回默认值，需要重新再次使用上述命令设置。
+  ```
+
+- 配置Linux的**系统配置**文件来实现修改**文件最大数量限制**。
+
+  修改Linux系统单进程最大打开文件数量限制，系统文件配置方法：
+
+  1. 查询：
+
+     所有进程打开文件总数的限制，由内存来决定，内存越大，打开的文件总数越大。
+
+     - 命令1：
+
+       ```cat /proc/sys/fs/file-max```
+
+     - 命令2：
+
+       ```ulimit - n```
+
+  2. 修改：
+
+     输入指令```sudo vim /etc/security/limits.conf```来修改limits.conf文件。
+
+     添加或者修改以下两行信息
+
+     ``* soft nofile 65535``
+
+     ``* hard nofile 65535``
+
+     然后重启电脑，即可完成文件最大数量限制的修改。
+
+     > soft nofile 是默认修改数值，即重启后每次打开terminal终端默认为 soft nofile的数值。
+     >
+     > 而hard nofile是普通用户最大的修改数值。普通用户修改最大文件数量不能超过hard nofile的数值。
+
+     > 为什么是 65535 这个数值，因为系统的端口号是uint 32 的整数，所有由2^32-1个端口数，设置跟端口号一致足够程序使用了。
+
+     **ps：**实际上root用户(su)是没有修改限制，只要在1048576范围内就行（0<= ulimit -n <= 1048576）
+
+- Linux系统对于 FD_SETSIZE 实现的库文件与windous不一致，不能简单修改代码的宏从而达到修改 FD_SETSIZE 的目的
+
+  - Linux的 fd_set 是按位存储的，即便是只有一个socket，但是其socket的数值大于1024也会引起错误。
+  - Linux的 FD_SET方法与Windows的截然不同。Linux的效率更高，但是代码写死了，限制最大数值为1024，不允许随意更改。
+
+-  Linux的 **fd_set 相关问题**解决方式
+
+  - 最安全、稳妥的方法：
+
+    重新编译内核。（极难、麻烦）
+
+  - 不需要重新编译内核的方法：
+
+    > 该方法需要经过足够的测试才能确保真正的稳定
+    >
+    > 且 该方法不能保证完全消除“未定义的行为”
+
+    创建FDSet类，自己重写FDSet相关的内容：
+
+    
+
+  - 
+
+- 
 
   
