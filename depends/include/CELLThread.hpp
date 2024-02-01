@@ -77,6 +77,7 @@ protected:
 			_onDestory(this);
 
 		_sem.wakeup();
+		_isRun = false;
 	}
 private:
 	EventCall _onCreate;

@@ -6,20 +6,27 @@
 
 //客户端心跳检测死亡计时时间
 #define CLIENT_HREAT_DEAD_TIME 60000
-//在间隔指定时间后
-//把发送缓冲区内缓存的消息数据发送给客户端
+//在间隔指定时间后才允许发送
 #define CLIENT_SEND_BUFF_TIME 200
 //客户端数据类型
 class CELLClient
 {
+//////////用于调试的成员变量
 public:
 	int id = -1;
 	//所属serverid
 	int serverId = -1;
+	//测试接收发逻辑用
+	//用于server检测接收到的消息ID是否连续
+	int nRecvMsgID = 1;
+	//测试接收发逻辑用
+	//用于client检测接收到的消息ID是否连续
+	int nSendMsgID = 1;
+///////////////////////////////////
 public:
-	CELLClient(SOCKET sockfd = INVALID_SOCKET):
-		_sendBuff(SEND_BUFF_SZIE),
-		_recvBuff(RECV_BUFF_SZIE)
+	CELLClient(SOCKET sockfd = INVALID_SOCKET, int sendSize = SEND_BUFF_SZIE, int recvSize = RECV_BUFF_SZIE):
+		_sendBuff(sendSize),
+		_recvBuff(recvSize)
 	{
 		static int n = 1;
 		id = n++;
@@ -31,7 +38,7 @@ public:
 
 	~CELLClient()
 	{
-		CELLLog::Info("s=%d CELLClient%d.~CELLClient\n", serverId, id);
+		CELLLog_Info("~CELLClient[sId=%d id=%d socket=%d]", serverId, id, (int)_sockfd);
 		if (INVALID_SOCKET != _sockfd)
 		{
 #ifdef _WIN32
@@ -114,7 +121,7 @@ public:
 		_dtHeart += dt;
 		if (_dtHeart >= CLIENT_HREAT_DEAD_TIME)
 		{
-			CELLLog::Info("checkHeart dead:s=%d,time=%ld\n",_sockfd, _dtHeart);
+			CELLLog_Info("checkHeart dead:s=%d,time=%ld",_sockfd, _dtHeart);
 			return true;
 		}
 		return false;
@@ -126,7 +133,7 @@ public:
 		_dtSend += dt;
 		if (_dtSend >= CLIENT_SEND_BUFF_TIME)
 		{
-			//CELLLog::Info("checkSend:s=%d,time=%d\n", _sockfd, _dtSend);
+			//CELLLog_Info("checkSend:s=%d,time=%d", _sockfd, _dtSend);
 			//立即将发送缓冲区的数据发送出去
 			SendDataReal();
 			//重置发送计时

@@ -853,7 +853,7 @@ int main(int argc, char* args[]){
   - Linux的 fd_set 是按位存储的，即便是只有一个socket，但是其socket的数值大于1024也会引起错误。
   - Linux的 FD_SET方法与Windows的截然不同。Linux的效率更高，但是代码写死了，限制最大数值为1024，不允许随意更改。
 
--  Linux的 **fd_set 相关问题**解决方式
+- Linux的 **fd_set 相关问题**解决方式
 
   - 最安全、稳妥的方法：
 
@@ -867,7 +867,9 @@ int main(int argc, char* args[]){
 
     创建FDSet类，自己重写FDSet相关的内容：
 
-    
+    1. 建立一个指针作为fd_set
+    2. 自定义指针所指空间的大小，不同平台的计算方式和存储方式不同。
+    3. 编写自定义的FDSet的增删改查四个方法。
 
   - 
 

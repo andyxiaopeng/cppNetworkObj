@@ -1,10 +1,11 @@
-﻿#ifndef _CELL_SERVER_HPP_
+#ifndef _CELL_SERVER_HPP_
 #define _CELL_SERVER_HPP_
 
 #include"CELL.hpp"
 #include"INetEvent.hpp"
 #include"CELLClient.hpp"
 #include"CELLSemaphore.hpp"
+#include"CELLFDSet.hpp"
 
 #include<vector>
 #include<map>
@@ -22,9 +23,9 @@ public:
 
 	~CELLServer()
 	{
-		CELLLog::Info("CELLServer%d.~CELLServer exit begin\n", _id);
+		CELLLog_Info("CELLServer%d.~CELLServer exit begin", _id);
 		Close();
-		CELLLog::Info("CELLServer%d.~CELLServer exit end\n", _id);
+		CELLLog_Info("CELLServer%d.~CELLServer exit end", _id);
 	}
 
 	void setEventObj(INetEvent* event)
@@ -35,10 +36,10 @@ public:
 	//关闭Socket
 	void Close()
 	{
-		CELLLog::Info("CELLServer%d.Close begin\n", _id);
+		CELLLog_Info("CELLServer%d.Close begin", _id);
 		_taskServer.Close();
 		_thread.Close();
-		CELLLog::Info("CELLServer%d.Close end\n", _id);
+		CELLLog_Info("CELLServer%d.Close end", _id);
 	}
 
 	//处理网络消息
@@ -63,68 +64,81 @@ public:
 			//如果没有需要处理的客户端，就跳过
 			if (_clients.empty())
 			{
-				std::chrono::milliseconds t(1);
-				std::this_thread::sleep_for(t);
+				CELLThread::Sleep(1);
 				//旧的时间戳
 				_oldTime = CELLTime::getNowInMilliSec();
 				continue;
 			}
 
-			//伯克利套接字 BSD socket
-			//描述符（socket） 集合
-			fd_set fdRead;
-			fd_set fdWrite;
-			//fd_set fdExc;
-
-			if (_clients_change)
+			CheckTime();
+			if (!DoSelect())
 			{
-				_clients_change = false;
-				//清理集合
-				FD_ZERO(&fdRead);
-				//将描述符（socket）加入集合
-				_maxSock = _clients.begin()->second->sockfd();
-				for (auto iter : _clients)
-				{
-					FD_SET(iter.second->sockfd(), &fdRead);
-					if (_maxSock < iter.second->sockfd())
-					{
-						_maxSock = iter.second->sockfd();
-					}
-				}
-				memcpy(&_fdRead_bak, &fdRead, sizeof(fd_set));
-			}
-			else {
-				memcpy(&fdRead, &_fdRead_bak, sizeof(fd_set));
-			}
-
-			memcpy(&fdWrite, &_fdRead_bak, sizeof(fd_set));
-			//memcpy(&fdExc, &_fdRead_bak, sizeof(fd_set));
-
-			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
-			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
-			timeval t{ 0,1 };
-			int ret = select(_maxSock + 1, &fdRead, &fdWrite, nullptr, &t);
-			if (ret < 0)
-			{
-				CELLLog::Info("CELLServer%d.OnRun.select Error exit\n", _id);
 				pThread->Exit();
 				break;
 			}
-			//else if (ret == 0)
-			//{
-			//	continue;
-			//}
-			ReadData(fdRead);
-			WriteData(fdWrite);
-			//WriteData(fdExc);
-			//CELLLog::Info("CELLServer%d.OnRun.select: fdRead=%d,fdWrite=%d\n", _id, fdRead.fd_count, fdWrite.fd_count);
-			//if (fdExc.fd_count > 0)
-			//{
-			//	CELLLog::Info("###fdExc=%d\n", fdExc.fd_count);
-			//}
-			CheckTime();
+			DoMsg();
 		}
-		CELLLog::Info("CELLServer%d.OnRun exit\n", _id);
+		CELLLog_Info("CELLServer%d.OnRun exit", _id);
+	}
+
+	bool DoSelect()
+	{
+		//计算可读集合
+		if (_clients_change)
+		{
+			_clients_change = false;
+			//清理集合
+			_fdRead.zero();
+			//将描述符（socket）加入集合
+			_maxSock = _clients.begin()->second->sockfd();
+			for (auto iter : _clients)
+			{
+				_fdRead.add(iter.second->sockfd());
+				if (_maxSock < iter.second->sockfd())
+				{
+					_maxSock = iter.second->sockfd();
+				}
+			}
+			_fdRead_bak.copy(_fdRead);
+		}
+		else {
+			_fdRead.copy(_fdRead_bak);
+		}
+		//计算可写集合
+		bool bNeedWrite = false;
+		_fdWrite.zero();
+		for (auto iter : _clients)
+		{	//需要写数据的客户端,才加入fd_set检测是否可写
+			if (iter.second->needWrite())
+			{
+				bNeedWrite = true;
+				_fdWrite.add(iter.second->sockfd());
+			}
+		}
+
+		///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
+		///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
+		timeval t{ 0,1 };
+		int ret = 0;
+		if (bNeedWrite)
+		{
+			ret = select(_maxSock + 1, _fdRead.fdset(), _fdWrite.fdset(), nullptr, &t);
+		}
+		else {
+			ret = select(_maxSock + 1, _fdRead.fdset(), nullptr, nullptr, &t);
+		}
+		if (ret < 0)
+		{
+            CELLLog_Error("CELLServer%d.OnRun.select Error exit:errno<%d>,errmsg<%s>", _id,errno,strerror(errno));
+			return false;
+		}
+		else if (ret == 0)
+		{
+			return true;
+		}
+		ReadData();
+		WriteData();
+		return true;
 	}
 
 	void CheckTime()
@@ -163,27 +177,29 @@ public:
 		delete pClient;
 	}
 
-	void WriteData(fd_set& fdWrite)
+	void WriteData()
 	{
 #ifdef _WIN32
-		for (int n = 0; n < fdWrite.fd_count; n++)
+		auto pfdset = _fdWrite.fdset();
+		for (int n = 0; n < pfdset->fd_count; n++)
 		{
-			auto iter = _clients.find(fdWrite.fd_array[n]);
+			auto iter = _clients.find(pfdset->fd_array[n]);
 			if (iter != _clients.end())
 			{
-				if (-1 == iter->second->SendDataReal())
+				if (SOCKET_ERROR == iter->second->SendDataReal())
 				{
 					OnClientLeave(iter->second);
 					_clients.erase(iter);
 				}
 			}
 		}
+		
 #else
 		for (auto iter = _clients.begin(); iter != _clients.end(); )
 		{
-			if (FD_ISSET(iter->second->sockfd(), &fdWrite))
+			if (iter->second->needWrite() && _fdWrite.has(iter->second->sockfd()))
 			{
-				if (-1 == iter->second->SendDataReal())
+				if (SOCKET_ERROR == iter->second->SendDataReal())
 				{
 					OnClientLeave(iter->second);
 					auto iterOld = iter;
@@ -197,15 +213,16 @@ public:
 #endif
 	}
 
-	void ReadData(fd_set& fdRead)
+	void ReadData()
 	{
 #ifdef _WIN32
-			for (int n = 0; n < fdRead.fd_count; n++)
+			auto pfdset = _fdRead.fdset();
+			for (int n = 0; n < pfdset->fd_count; n++)
 			{
-				auto iter = _clients.find(fdRead.fd_array[n]);
+				auto iter = _clients.find(pfdset->fd_array[n]);
 				if (iter != _clients.end())
 				{
-					if (-1 == RecvData(iter->second))
+					if (SOCKET_ERROR == RecvData(iter->second))
 					{
 						OnClientLeave(iter->second);
 						_clients.erase(iter);
@@ -215,9 +232,9 @@ public:
 #else
 			for (auto iter = _clients.begin(); iter != _clients.end(); )
 			{
-				if (FD_ISSET(iter->second->sockfd(), &fdRead))
+				if (_fdRead.has(iter->second->sockfd()))
 				{
-					if (-1 == RecvData(iter->second))
+					if (SOCKET_ERROR == RecvData(iter->second))
 					{
 						OnClientLeave(iter->second);
 						auto iterOld = iter;
@@ -231,26 +248,31 @@ public:
 #endif
 	}
 
+	void DoMsg()
+	{
+		CELLClient* pClient = nullptr;
+		for (auto itr : _clients)
+		{
+			pClient = itr.second;
+			//循环 判断是否有消息需要处理
+			while (pClient->hasMsg())
+			{
+				//处理网络消息
+				OnNetMsg(pClient, pClient->front_msg());
+				//移除消息队列（缓冲区）最前的一条数据
+				pClient->pop_front_msg();
+			}
+		}
+	}
+
 	//接收数据 处理粘包 拆分包
 	int RecvData(CELLClient* pClient)
 	{
 		//接收客户端数据
 		int nLen = pClient->RecvData();
-		if (nLen <= 0)
-		{
-			return -1;
-		}
 		//触发<接收到网络数据>事件
 		_pNetEvent->OnNetRecv(pClient);
-		//循环 判断是否有消息需要处理
-		while (pClient->hasMsg())
-		{
-			//处理网络消息
-			OnNetMsg(pClient, pClient->front_msg());
-			//移除消息队列（缓冲区）最前的一条数据
-			pClient->pop_front_msg();
-		}
-		return 0;
+		return nLen;
 	}
 
 	//响应网络消息
@@ -322,8 +344,12 @@ private:
 	INetEvent* _pNetEvent;
 	//
 	CELLTaskServer _taskServer;
+	//伯克利套接字 BSD socket
+	//描述符（socket） 集合
+	CELLFDSet _fdRead;
+	CELLFDSet _fdWrite;
 	//备份客户socket fd_set
-	fd_set _fdRead_bak;
+	CELLFDSet _fdRead_bak;
 	//
 	SOCKET _maxSock;
 	//旧的时间戳

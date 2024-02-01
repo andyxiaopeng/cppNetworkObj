@@ -43,9 +43,9 @@ public:
 
 	void Close()
 	{
-		///CELLLog::Info("CELLTaskServer%d.Close begin\n", serverId);
+		///CELLLog_Info("CELLTaskServer%d.Close begin", serverId);
 		_thread.Close();
-		//CELLLog::Info("CELLTaskServer%d.Close end\n", serverId);
+		//CELLLog_Info("CELLTaskServer%d.Close end", serverId);
 	}
 protected:
 	//工作函数
@@ -66,8 +66,7 @@ protected:
 			//如果没有任务
 			if (_tasks.empty())
 			{
-				std::chrono::milliseconds t(1);
-				std::this_thread::sleep_for(t);
+				CELLThread::Sleep(1);
 				continue;
 			}
 			//处理任务
@@ -83,7 +82,7 @@ protected:
 		{
 			pTask();
 		}
-		//CELLLog::Info("CELLTaskServer%d.OnRun exit\n", serverId);
+		//CELLLog_Info("CELLTaskServer%d.OnRun exit", serverId);
 	}
 };
 #endif // !_CELL_TASK_H_

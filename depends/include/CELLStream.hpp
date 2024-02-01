@@ -1,7 +1,9 @@
 ﻿#ifndef _CELL_STREAM_HPP_
 #define _CELL_STREAM_HPP_
 
+#include"CELLLog.hpp"
 #include<cstdint>
+#include<string>
 
 //字节流BYTE
 class CELLStream
@@ -87,7 +89,9 @@ public:
 				pop(nLen);
 			return true;
 		}
-		//
+		//断言assert
+		//错误日志
+		CELLLog_Error("error, CELLStream::Read failed.");
 		return false;
 	}
 
@@ -104,7 +108,7 @@ public:
 		//读取数组元素个数,但不偏移读取位置
 		Read(len1,false);
 		//判断缓存数组能否放得下
-		if (len1 < len)
+		if (len1 <= len)
 		{
 			//计算数组的字节长度
 			auto nLen = len1 * sizeof(T);
@@ -120,6 +124,7 @@ public:
 				return len1;
 			}
 		}
+		CELLLog_Error("CELLStream::ReadArray failed.");
 		return 0;
 	}
 
@@ -141,6 +146,37 @@ public:
 		Read(n);
 		return n;
 	}
+
+	int64_t ReadInt64(int64_t n = 0)
+	{
+		Read(n);
+		return n;
+	}
+
+	uint8_t ReadUInt8(uint8_t def = 0)
+	{
+		Read(def);
+		return def;
+	}
+	//short
+	uint16_t ReadUInt16(uint16_t n = 0)
+	{
+		Read(n);
+		return n;
+	}
+	//int
+	uint32_t ReadUInt32(uint32_t n = 0)
+	{
+		Read(n);
+		return n;
+	}
+
+	uint64_t ReadUInt64(uint64_t n = 0)
+	{
+		Read(n);
+		return n;
+	}
+
 	float ReadFloat(float n = 0.0f)
 	{
 		Read(n);
@@ -150,6 +186,27 @@ public:
 	{
 		Read(n);
 		return n;
+	}
+
+	bool ReadString(std::string& str)
+	{
+		uint32_t nLen = 0;
+		Read(nLen, false);
+		if (nLen > 0)
+		{
+			//判断能不能读出
+			if (canRead(nLen + sizeof(uint32_t)))
+			{
+				//计算已读位置+数组长度所占有空间
+				pop(sizeof(uint32_t));
+				//将要读取的数据 拷贝出来
+				str.insert(0, _pBuff + _nReadPos, nLen);
+				//计算已读数据位置
+				pop(nLen);
+				return true;
+			}
+		}
+		return false;
 	}
 //////Write
 	template<typename T>
@@ -166,6 +223,7 @@ public:
 			push(nLen);
 			return true;
 		}
+		CELLLog_Error("CELLStream::Write failed.");
 		return false;
 	}
 	template<typename T>
@@ -184,6 +242,7 @@ public:
 			push(nLen);
 			return true;
 		}
+		CELLLog_Error("CELLStream::WriteArray failed.");
 		return false;
 	}
 

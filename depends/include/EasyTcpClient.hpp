@@ -5,6 +5,7 @@
 #include"CELLNetWork.hpp"
 #include"MessageHeader.hpp"
 #include"CELLClient.hpp"
+#include"CELLFDSet.hpp"
 
 class EasyTcpClient
 {
@@ -19,24 +20,26 @@ public:
 		Close();
 	}
 	//初始化socket
-	void InitSocket()
+	SOCKET InitSocket(int sendSize = SEND_BUFF_SZIE, int recvSize = RECV_BUFF_SZIE)
 	{
 		CELLNetWork::Init();
 
 		if (_pClient)
 		{
-			CELLLog::Info("warning, initSocket close old socket<%d>...\n", (int)_pClient->sockfd());
+			CELLLog_Info("warning, initSocket close old socket<%d>...", (int)_pClient->sockfd());
 			Close();
 		}
 		SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock)
 		{
-			CELLLog::Info("error, create socket failed...\n");
+			CELLLog_Error("create socket failed...");
 		}
 		else {
-			//CELLLog::Info("create socket<%d> success...\n", (int)sock);
-			_pClient = new CELLClient(sock);
+			CELLNetWork::make_reuseaddr(sock);
+			//CELLLog_Info("create socket<%d> success...", (int)sock);
+			_pClient = new CELLClient(sock, sendSize, recvSize);
 		}
+		return sock;
 	}
 
 	//连接服务器
@@ -44,7 +47,10 @@ public:
 	{
 		if (!_pClient)
 		{
-			InitSocket();
+			if (INVALID_SOCKET == InitSocket())
+			{
+				return SOCKET_ERROR;
+			}
 		}
 		// 2 连接服务器 connect
 		sockaddr_in _sin = {};
@@ -55,15 +61,15 @@ public:
 #else
 		_sin.sin_addr.s_addr = inet_addr(ip);
 #endif
-		//CELLLog::Info("<socket=%d> connecting <%s:%d>...\n", (int)_pClient->sockfd(), ip, port);
+		//CELLLog_Info("<socket=%d> connecting <%s:%d>...", (int)_pClient->sockfd(), ip, port);
 		int ret = connect(_pClient->sockfd(), (sockaddr*)&_sin, sizeof(sockaddr_in));
 		if (SOCKET_ERROR == ret)
 		{
-			CELLLog::Info("<socket=%d> connect <%s:%d> failed...\n", (int)_pClient->sockfd(), ip, port);
+			CELLLog_Info("<socket=%d> connect <%s:%d> failed...", (int)_pClient->sockfd(), ip, port);
 		}
 		else {
 			_isConnect = true;
-			//CELLLog::Info("<socket=%d> connect <%s:%d> success...\n", (int)_pClient->sockfd(), ip, port);
+			//CELLLog_Info("<socket=%d> connect <%s:%d> success...", (int)_pClient->sockfd(), ip, port);
 		}
 		return ret;
 	}
@@ -80,51 +86,51 @@ public:
 	}
 
 	//处理网络消息
-	bool OnRun()
+	bool OnRun(int microseconds = 1)
 	{
 		if (isRun())
 		{
 			SOCKET _sock = _pClient->sockfd();
 
-			fd_set fdRead;
-			FD_ZERO(&fdRead);
-			FD_SET(_sock, &fdRead);
 
-			fd_set fdWrite;
-			FD_ZERO(&fdWrite);
+			_fdRead.zero();
+			_fdRead.add(_sock);
 
-			timeval t = { 0,1 };
+			_fdWrite.zero();
+
+			timeval t = { 0,microseconds };
 			int ret = 0;
 			if (_pClient->needWrite())
 			{
-				FD_SET(_sock, &fdWrite);
-				ret = select(_sock + 1, &fdRead, &fdWrite, nullptr, &t);
+				
+				_fdWrite.add(_sock);
+				ret = select(_sock + 1, _fdRead.fdset(), _fdWrite.fdset(), nullptr, &t);
 			}else {
-				ret = select(_sock + 1, &fdRead, nullptr, nullptr, &t);
+				ret = select(_sock + 1, _fdRead.fdset(), nullptr, nullptr, &t);
 			}
 
 			if (ret < 0)
 			{
-				CELLLog::Info("error,<socket=%d>OnRun.select exit\n", (int)_sock);
+				CELLLog_Error("<socket=%d>OnRun.select exit", (int)_sock);
 				Close();
 				return false;
 			}
 
-			if (FD_ISSET(_sock, &fdRead))
+			if (_fdRead.has(_sock))
 			{
-				if (-1 == RecvData(_sock))
+				if (SOCKET_ERROR == RecvData(_sock))
 				{
-					CELLLog::Info("error,<socket=%d>OnRun.select RecvData exit\n", (int)_sock);
+					CELLLog_Error("<socket=%d>OnRun.select RecvData exit", (int)_sock);
 					Close();
 					return false;
 				}
 			}
 
-			if (FD_ISSET(_sock, &fdWrite))
+			if (_fdWrite.has(_sock))
 			{
-				if (-1 == _pClient->SendDataReal())
+				if (SOCKET_ERROR == _pClient->SendDataReal())
 				{
-					CELLLog::Info("error,<socket=%d>OnRun.select SendDataReal exit\n", (int)_sock);
+					CELLLog_Error("<socket=%d>OnRun.select SendDataReal exit", (int)_sock);
 					Close();
 					return false;
 				}
@@ -171,16 +177,18 @@ public:
 	{
 		if(isRun())
 			return _pClient->SendData(header);
-		return 0;
+		return SOCKET_ERROR;
 	}
 
 	int SendData(const char* pData, int len)
 	{
 		if (isRun())
 			return _pClient->SendData(pData, len);
-		return 0;
+		return SOCKET_ERROR;
 	}
 protected:
+	CELLFDSet _fdRead;
+	CELLFDSet _fdWrite;
 	CELLClient* _pClient = nullptr;
 	bool _isConnect = false;
 };

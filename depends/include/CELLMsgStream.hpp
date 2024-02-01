@@ -5,17 +5,23 @@
 #include"CELLStream.hpp"
 
 //消息数据字节流
-class CELLRecvStream :public CELLStream
+class CELLReadStream :public CELLStream
 {
 public:
-	CELLRecvStream(netmsg_DataHeader* header)
-		:CELLStream((char*)header, header->dataLength)
+	CELLReadStream(netmsg_DataHeader* header)
+		:CELLReadStream((char*)header, header->dataLength)
 	{
-		push(header->dataLength);
-		//预先读取消息长度
-		ReadInt16();
-		//预先读取消息命令
-		getNetCmd();
+
+	}
+
+	CELLReadStream(char* pData, int nSize, bool bDelete = false)
+		:CELLStream(pData, nSize, bDelete)
+	{
+		push(nSize);
+		////预先读取消息长度
+		//ReadInt16();
+		////预先读取消息命令
+		//getNetCmd();
 	}
 
 	uint16_t getNetCmd()
@@ -27,17 +33,17 @@ public:
 };
 
 //消息数据字节流
-class CELLSendStream :public CELLStream
+class CELLWriteStream :public CELLStream
 {
 public:
-	CELLSendStream(char* pData, int nSize, bool bDelete = false)
+	CELLWriteStream(char* pData, int nSize, bool bDelete = false)
 		:CELLStream(pData, nSize, bDelete)
 	{
 		//预先占领消息长度所需空间
 		Write<uint16_t>(0);
 	}
 
-	CELLSendStream(int nSize = 1024)
+	CELLWriteStream(int nSize = 1024)
 		:CELLStream(nSize)
 	{
 		//预先占领消息长度所需空间

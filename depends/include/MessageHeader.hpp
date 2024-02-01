@@ -3,7 +3,7 @@
 
 enum CMD
 {
-	CMD_LOGIN,
+	CMD_LOGIN = 10,
 	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
 	CMD_LOGOUT_RESULT,
@@ -34,7 +34,8 @@ struct netmsg_Login : public netmsg_DataHeader
 	}
 	char userName[32];
 	char PassWord[32];
-	char data[32];
+	char data[28];
+	int msgID;
 };
 
 struct netmsg_LoginR : public netmsg_DataHeader
@@ -46,7 +47,8 @@ struct netmsg_LoginR : public netmsg_DataHeader
 		result = 0;
 	}
 	int result;
-	char data[92];
+	char data[88];
+	int msgID;
 };
 
 struct netmsg_Logout : public netmsg_DataHeader
