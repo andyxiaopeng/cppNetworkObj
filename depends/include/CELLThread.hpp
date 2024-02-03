@@ -53,9 +53,9 @@ public:
 	//如果使用会阻塞
 	void Exit()
 	{
-		std::lock_guard<std::mutex> lock(_mutex);
 		if (_isRun)
 		{
+			std::lock_guard<std::mutex> lock(_mutex);
 			_isRun = false;
 		}
 	}

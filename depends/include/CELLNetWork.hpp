@@ -78,6 +78,18 @@ public:
 		}
 		return 0;
 	}
+
+	static int destorySocket(SOCKET sockfd)
+	{
+#ifdef _WIN32
+		int ret = closesocket(sockfd);
+#else
+		int ret = close(sockfd);
+#endif
+		if(ret < 0)
+			CELLLog_PError("destory sockfd<%d>",(int)sockfd);
+		return ret;
+	}
 };
 
 #endif // !_CELL_NET_WORK_HPP_

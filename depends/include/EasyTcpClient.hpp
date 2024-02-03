@@ -32,7 +32,7 @@ public:
 		SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock)
 		{
-			CELLLog_Error("create socket failed...");
+			CELLLog_PError("create socket failed...");
 		}
 		else {
 			CELLNetWork::make_reuseaddr(sock);
@@ -65,7 +65,7 @@ public:
 		int ret = connect(_pClient->sockfd(), (sockaddr*)&_sin, sizeof(sockaddr_in));
 		if (SOCKET_ERROR == ret)
 		{
-			CELLLog_Info("<socket=%d> connect <%s:%d> failed...", (int)_pClient->sockfd(), ip, port);
+			CELLLog_PError("<socket=%d> connect <%s:%d> failed...", (int)_pClient->sockfd(), ip, port);
 		}
 		else {
 			_isConnect = true;
@@ -111,7 +111,7 @@ public:
 
 			if (ret < 0)
 			{
-				CELLLog_Error("<socket=%d>OnRun.select exit", (int)_sock);
+				CELLLog_PError("<socket=%d>OnRun.select exit", (int)_sock);
 				Close();
 				return false;
 			}

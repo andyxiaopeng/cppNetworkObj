@@ -86,7 +86,7 @@ public:
 			ret = send(sockfd, _pBuff, _nLast, 0);
 			if (ret <= 0)
 			{
-				CELLLog_Error("write2socket1:sockfd<%d> nSize<%d> nLast<%d> ret<%d>", sockfd, _nSize, _nLast, ret);
+				CELLLog_PError("write2socket1:sockfd<%d> nSize<%d> nLast<%d> ret<%d>", sockfd, _nSize, _nLast, ret);
 				return SOCKET_ERROR;
 			}
 			if (ret == _nLast)
@@ -114,7 +114,7 @@ public:
 			int nLen = (int)recv(sockfd, szRecv, _nSize - _nLast, 0);
 			if (nLen <= 0)
 			{
-				CELLLog_Error("read4socket:sockfd<%d> nSize<%d> nLast<%d> nLen<%d>", sockfd, _nSize, _nLast, nLen);
+				CELLLog_PError("read4socket:sockfd<%d> nSize<%d> nLast<%d> nLen<%d>", sockfd, _nSize, _nLast, nLen);
 				return SOCKET_ERROR;
 			}
 			//消息缓冲区的数据尾部位置后移

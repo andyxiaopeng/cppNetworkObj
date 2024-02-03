@@ -3,6 +3,7 @@
 
 #include"CELL.hpp"
 #include"CELLBuffer.hpp"
+#include"CELLNetWork.hpp"
 
 //客户端心跳检测死亡计时时间
 #define CLIENT_HREAT_DEAD_TIME 60000
@@ -41,11 +42,7 @@ public:
 		CELLLog_Info("~CELLClient[sId=%d id=%d socket=%d]", serverId, id, (int)_sockfd);
 		if (INVALID_SOCKET != _sockfd)
 		{
-#ifdef _WIN32
-			closesocket(_sockfd);
-#else
-			close(_sockfd);
-#endif
+			CELLNetWork::destorySocket(_sockfd);
 			_sockfd = INVALID_SOCKET;
 		}
 	}

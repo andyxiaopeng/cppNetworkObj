@@ -23,6 +23,8 @@ class CELLLog
 #define CELLLog_Info(...) CELLLog::Info(__VA_ARGS__)
 #define CELLLog_Warring(...) CELLLog::Warring(__VA_ARGS__)
 #define CELLLog_Error(...) CELLLog::Error(__VA_ARGS__)
+#define CELLLog_Error(...) CELLLog::Error(__VA_ARGS__)
+#define CELLLog_PError(...) CELLLog::PError(__VA_ARGS__)
 
 private:
 	CELLLog()
@@ -79,6 +81,40 @@ public:
 		}
 	}
 
+	static void PError(const char* pStr)
+	{
+		PError("%s", pStr);
+	}
+
+	template<typename ...Args>
+	static void PError(const char* pformat, Args ... args)
+	{
+#ifdef _WIN32
+		auto errCode = GetLastError();
+
+		Instance()._taskServer.addTask([=]() {
+
+			char text[256] = {};
+			FormatMessageA(
+				FORMAT_MESSAGE_FROM_SYSTEM,
+				NULL,
+				errCode,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPSTR)&text, 256, NULL
+			);
+
+			EchoReal(true, "PError ", pformat, args...);
+			EchoReal(false,"PError ", "errno=%d,errmsg=%s", errCode, text);
+		});
+#else
+		auto errCode = errno;
+		Instance()._taskServer.addTask([=]() {
+			EchoReal(true, "PError ", pformat, args...);
+			EchoReal(true, "PError ", "errno<%d>,errmsg<%s>", errCode, strerror(errCode));
+		});
+#endif
+	}
+
 	static void Error(const char* pStr)
 	{
 		Error("%s", pStr);
@@ -128,23 +164,34 @@ public:
 	{
 		CELLLog* pLog = &Instance();
 		pLog->_taskServer.addTask([=]() {
-			if (pLog->_logFile)
-			{
-				auto t = system_clock::now();
-				auto tNow = system_clock::to_time_t(t);
-				//fprintf(pLog->_logFile, "%s", ctime(&tNow));
-				std::tm* now = std::localtime(&tNow);
-				fprintf(pLog->_logFile, "%s", type);
-				fprintf(pLog->_logFile, "[%d-%d-%d %d:%d:%d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
-				fprintf(pLog->_logFile, pformat, args...);
-				fprintf(pLog->_logFile, "%s", "\n");
-				fflush(pLog->_logFile);
-
-			}
-			printf("%s", type);
-			printf(pformat, args...);
-			printf("%s", "\n");
+			EchoReal(true, type, pformat, args...);
 		});
+	}
+
+	template<typename ...Args>
+	static void EchoReal(bool br,const char* type, const char* pformat, Args ... args)
+	{
+		CELLLog* pLog = &Instance();
+		if (pLog->_logFile)
+		{
+			auto t = system_clock::now();
+			auto tNow = system_clock::to_time_t(t);
+			//fprintf(pLog->_logFile, "%s", ctime(&tNow));
+			std::tm* now = std::localtime(&tNow);
+			if (type)
+				fprintf(pLog->_logFile, "%s", type);
+			fprintf(pLog->_logFile, "[%d-%d-%d %d:%d:%d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
+			fprintf(pLog->_logFile, pformat, args...);
+			if (br)
+				fprintf(pLog->_logFile, "%s", "\n");
+			fflush(pLog->_logFile);
+
+		}
+		if (type)
+			printf("%s", type);
+		printf(pformat, args...);
+		if(br)
+			printf("%s", "\n");
 	}
 private:
 	FILE* _logFile = nullptr;

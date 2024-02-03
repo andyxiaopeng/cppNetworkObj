@@ -1,8 +1,9 @@
-﻿#include"EasyTcpServer.hpp"
+﻿//#include"EasySelectServer.hpp"
+#include"EasyEpollServer.hpp"
 #include"CELLMsgStream.hpp"
 #include"CELLConfig.hpp"
 
-class MyServer : public EasyTcpServer
+class MyServer : public EasyEpollServer
 {
 public:
 	MyServer()
