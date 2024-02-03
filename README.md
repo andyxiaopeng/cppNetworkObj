@@ -66,7 +66,7 @@ select网络模型参考资料：[C++网络编程select函数原理详解_c++ se
 >
 > 使用阻塞模式send的意义是：随时可写、控制收发简单。
 >
-> select函数的三个参数分别是检擦socket的可读、可写、异常。
+> select函数的三个参数分别是检查socket的可读、可写、异常。
 
 在阻塞的socket下，不考虑是否可以写入数据就直接调用send来发送数据，如果当前send不满足发送数据的条件则会陷入阻塞从而使得发送效率降低。
 
@@ -871,8 +871,187 @@ int main(int argc, char* args[]){
     2. 自定义指针所指空间的大小，不同平台的计算方式和存储方式不同。
     3. 编写自定义的FDSet的增删改查四个方法。
 
-  - 
+## epoll 网络模型
 
-- 
+> epoll是在Linux下开发的，也是专门为Linux做的一个网络模型。适用于Linux各种延申的系统，而select则适用于所有主流系统。
+>
+> 相对与select的轮询机制，epoll的wait机制更像是一种反射。
+>
+> epoll相对于select的1024个文件数量限制具有极大优势，因为epoll可以根据系统资源动态调整运行打开的文件数量。
+>
+> epoll默认LT模式，如果你对fd_sock循环检测是否可写，会一直输出可写。
+>
+> [linux epoll man 详解](https://www.man7.org/linux/man-pages/man7/epoll.7.html)
 
-  
+### 使用方法
+
+1. 导入epoll头文件
+
+   ```c++
+   #include <sys/epoll.h>
+   // 导入一个头文件，就可以使用全部epoll的方法
+   ```
+
+2. 创建一个epol的对象
+
+   > 创建一个epoll的对象，但是实际上不算是对象，而是使用epoll的描述符或者句柄
+
+   ```c++
+   int epfd = epoll_create(10240); //参数是：epoll对象可以管理文件数量的大小
+   ```
+
+   参数是：epoll对象可以管理文件数量的大小，该数值是int类型，所以最大为2^32。但实际上Linux2.6.8后，这个参数变得没有意义了，因为Linux2.6.8之后，epoll可以打开的文件数量是根据系统资源动态变化。打开的最大值由电脑的内存大小决定，可以使用如下代码查询：
+
+   ```shell
+   cat /proc/sys/fs/file-max
+   ```
+
+3. epoll 操作
+
+   - epoll由特定的方法来进行操作：epoll_ctl()
+
+     > 该方法是向epoll对象注册需要管理、监听的socket文件描述符，并且传入需要关注的事件，以及相应的操作。
+
+     ```c++
+     epoll_ctl(epfd,EPOLL_CTL_MOD,_sock,&ev);
+     ```
+
+   - 该方法有四个参数：
+
+     1. 第一个参数：epoll的对象，类型是int类型，epfd
+
+     2. 第二个参数：epoll的注册操作的类型，由epoll库提供，分别是：EPOLL_CTL_ADD、EPOLL_CTL_DEL、EPOLL_CTL_MOD
+
+        - EPOLL_CTL_ADD：表示新注册事件。
+
+        - EPOLL_CTL_DEL：表示删除已注册的事件。
+
+        - EPOLL_CTL_MOD：表示修改已注册的事件。
+
+     3. 第三个参数：socket描述符，即被epoll操作的文件描述符
+
+     4. 第四个参数：一个事件的对象，该对象的类型是一个结构体，epoll_event：
+
+        ```c++
+        // epoll_event
+        
+        struct epoll_event
+        {
+          uint32_t events;	/* Epoll events */
+          epoll_data_t data;	/* User data variable */
+        } __EPOLL_PACKED;
+        
+        typedef union epoll_data
+        {
+          void *ptr;
+          int fd;
+          uint32_t u32;
+          uint64_t u64;
+        } epoll_data_t;
+        ```
+
+        在实际使用中，需要对epoll_event对象进行配置：
+
+        1. 配置ev对象的事件：
+
+           ```c++
+           ev.events = EPOLLIN;
+           // ev.events = EPOLLOUT;
+           ```
+
+           该事件对象就是对文件的一些操作，例如： 可读、可查、可写等操作。
+
+        2. 配置ev对象管理的文件描述符：
+
+           ```c++
+           ev.data.fd = _sock;
+           ```
+
+   - 该函数的返回值：
+
+     - 返回 0 表示该操作成功；
+     - 返回 负数 表示操纵失败，一般都是返回 -1；
+
+4. 等待事件的发生
+
+   - 等待注册的事件发生：epoll_wait()
+
+     > 
+
+     ```c++
+     extern int epoll_wait (int __epfd, struct epoll_event *__events, int __maxevents, int __timeout);
+     
+     // epoll_wait(epfd,events,256,0);
+     ```
+
+   - 该方法有四个参数：
+
+     1. 第一个参数：epoll的对象，类型是int类型，epfd
+
+     2. 第二个参数：epoll的事件数组，用来接收检测到的事件。数组的大小可以是epoll对象管理文件的数值，尽管epoll对象管理文件数量的数值已经没有意义了，但是为了兼容旧版本，所以需要保存其一致。**epoll的事件数组其实是可以根据客户端的数量来动态变化**的，客户端数量变多了，可以重新new一个epoll的事件数组。
+
+        ```c++
+        epoll_event events[256] = {};
+        ```
+
+     3. 第三个参数：该参数是说明第二个参数传入的事件数组的大小。也可以理解为能接受事件的能力，允许比事件数组的容量小，但是不允许大于事件数组的容量。
+
+     4. 第四个参数：超时的时间（单位为**毫秒**），可以传入数值``` 0 ```，数值为0则表示触发事件立即反回。传入数值``` -1 ```，表示没有触发事件则一直阻塞。
+
+   - 返回值：
+
+     返回值表示触发事件的个数。
+
+     - 返回 0 表示有0个触发事件；
+     - 返回 正数n 表示有n个触发事件；
+     - 返回 负数 表示操纵失败，一般都是返回 -1；
+
+5. 接受到n个触发事件后进行事件处理：
+
+   > 在触发事件数组当中会存储当前已经被触发的事件。随后根据这些被调用的事件信息来进行自定义的操作。
+
+   ```c++
+   // 这是根据触发事件数组，进行socket的accept操作示例。
+   for (int i = 0; i < n; ++i) {
+       if (events[i].data.fd == _sock){
+           //---------------================-----------------
+           // 这是根据程序逻辑来编写不一样的代码，可以是socket的accept操作、可以是socket的消息接收操作、可以是socket的消息发送操作
+           sockaddr_in clientAddr = {};
+           int nAddrLen = sizeof(sockaddr_in);
+           SOCKET _cSock = INVALID_SOCKET;
+   
+           _cSock = accept(_sock,(sockaddr*)&clientAddr,(socklen_t*)&nAddrLen);
+           if (_cSock == INVALID_SOCKET){
+           	std::cout << "接受客户端出错\n";
+       	}
+           //---------------================-----------------
+       }
+   }
+   ```
+
+6. 关闭epoll描述符：
+
+   ```c++
+   close(epfd);
+   ```
+
+7. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
