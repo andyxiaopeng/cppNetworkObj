@@ -8,6 +8,182 @@
 
 > 经测试：1、本地回环（IP号 127 开头）能达到2Gbps，甚至更多。2、本地路由器局域网（IP号 196 开头），能达到四五百Mbps，极限大概是1Gbps（因为主机网口是千兆网口，而千兆以太网就是1Gbps）。3、校园内局域网（IP号 10 开头），能达到70多Mbps。
 
+## Socket网络编程
+
+> Linux和windows的socket导入的包不相同，且开启socket网络环境的语句也不相同。
+
+- socket网络环境的开启和关闭
+
+  - 开启
+
+    ```c++
+    #ifdef _WIN32
+    		//启动Windows socket 2.x环境
+    		WORD ver = MAKEWORD(2, 2);
+    		WSADATA dat;
+    		WSAStartup(ver, &dat);
+    #endif
+    
+    #ifndef _WIN32
+    		//if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    		//	return (1);
+    		//忽略异常信号，默认情况会导致进程终止
+    		signal(SIGPIPE, SIG_IGN);
+    #endif
+    ```
+
+  - 关闭
+
+    ```c++
+    #ifdef _WIN32
+    		//清除Windows socket环境
+    		WSACleanup();
+    #endif
+    ```
+
+- 服务端
+
+  1. 创建socket
+
+     ```c++
+     SOCKET _sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+     ```
+
+  2. 绑定端口bing
+
+     ```c++
+         // 2.1 bind 绑定用于接受客户端连接的网络端口
+     
+     	// 创建描述地址端口信息的对象   Linux的写法
+         sockaddr_in _sin = {};
+         _sin.sin_family = AF_INET;
+         _sin.sin_port = htons(4567);//host to net unsigned short
+         // _sin.sin_addr.s_addr = INADDR_ANY; // INADDR_ANY 代表本机所有网口
+     	const char* ip = "192.168.1.1"
+     #ifdef _WIN32
+     		_sin.sin_addr.S_un.S_addr = inet_addr(ip);
+     #else
+     		_sin.sin_addr.s_addr = inet_addr(ip);
+     #endif
+     
+         // 2.2
+         if (SOCKET_ERROR == bind(_sock, (sockaddr*)&_sin, sizeof(_sin)))
+         {
+             printf("错误,绑定网络端口失败...\n");
+         }
+         else {
+             printf("绑定网络端口成功...\n");
+         }
+     ```
+
+  3. 监听端口listen
+
+     ```c++
+         // 3 listen 监听网络端口
+         if (SOCKET_ERROR == listen(_sock, 64))
+         {
+             printf("错误,监听网络端口失败...\n");
+         }
+         else {
+             printf("监听网络端口成功...\n");
+         }
+     ```
+
+  4. 等待连接accept
+
+     accept需要与网络IO模型相配合进行业务逻辑程序编写。
+
+     ```c++
+     // 4 accept 等待接受客户端连接
+     sockaddr_in clientAddr = {};
+     int nAddrLen = sizeof(sockaddr_in);
+     SOCKET _cSock = INVALID_SOCKET;
+     _cSock = accept(_sock, (sockaddr*)&clientAddr, (socklen_t *)&nAddrLen);
+     ```
+
+  5. 循环交互：
+
+     循环交互则是 发送数据 和 接收数据 ，两者需要结合IO模型来进行程序编写。
+
+     接收数据：
+
+     ```c++
+     g_nLen = (int)recv(cSock, g_szBUff, 4096, 0);
+     ```
+
+     发送数据：
+
+     ```c++
+     int nLen = (int)send(cSock, g_szBUff, g_nLen, 0);
+     ```
+
+  6. 关闭socket
+
+     ```c++
+     #ifdef _WIN32
+     		int ret = closesocket(sockfd);
+     #else
+     		int ret = close(sockfd);
+     #endif
+     ```
+
+- 客户端
+
+  1. 创建socket
+
+     ```c++
+     SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+     ```
+
+  2. 连接服务器connect
+
+     ```c++
+     // 2 连接服务器 connect
+     	const char* ip = "192.168.1.1";
+         unsigned short port = 4567;
+     
+         sockaddr_in _sin = {};
+         _sin.sin_family = AF_INET;
+         _sin.sin_port = htons(port);
+     #ifdef _WIN32
+         _sin.sin_addr.S_un.S_addr = inet_addr(ip);
+     #else
+         _sin.sin_addr.s_addr = inet_addr(ip);
+     #endif
+     
+         int ret = connect(_pClient->sockfd(), (sockaddr*)&_sin, sizeof(sockaddr_in));
+     ```
+
+     
+
+  3. 循环交互
+
+     循环交互则是 发送数据 和 接收数据 ，两者需要结合IO模型来进行程序编写。
+
+     接收数据：
+
+     ```c++
+     g_nLen = (int)recv(cSock, g_szBUff, 4096, 0);
+     ```
+
+     发送数据：
+
+     ```c++
+     int nLen = (int)send(cSock, g_szBUff, g_nLen, 0);
+     ```
+
+  4. 关闭socket
+
+     ```c++
+     #ifdef _WIN32
+     		int ret = closesocket(sockfd);
+     #else
+     		int ret = close(sockfd);
+     #endif
+     ```
+
+     
+
 ## 五种网络IO模型
 
 > IO就是输入和输出。
@@ -1034,14 +1210,6 @@ int main(int argc, char* args[]){
    ```c++
    close(epfd);
    ```
-
-7. 
-
-
-
-
-
-
 
 
 
