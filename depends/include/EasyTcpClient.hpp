@@ -5,7 +5,6 @@
 #include"CELLNetWork.hpp"
 #include"MessageHeader.hpp"
 #include"CELLClient.hpp"
-#include"CELLFDSet.hpp"
 
 class EasyTcpClient
 {
@@ -38,6 +37,7 @@ public:
 			CELLNetWork::make_reuseaddr(sock);
 			//CELLLog_Info("create socket<%d> success...", (int)sock);
 			_pClient = new CELLClient(sock, sendSize, recvSize);
+			OnInitSocket();
 		}
 		return sock;
 	}
@@ -69,13 +69,14 @@ public:
 		}
 		else {
 			_isConnect = true;
+			OnConnect();
 			//CELLLog_Info("<socket=%d> connect <%s:%d> success...", (int)_pClient->sockfd(), ip, port);
 		}
 		return ret;
 	}
 
 	//关闭套节字closesocket
-	void Close()
+	virtual void Close()
 	{
 		if (_pClient)
 		{
@@ -86,59 +87,7 @@ public:
 	}
 
 	//处理网络消息
-	bool OnRun(int microseconds = 1)
-	{
-		if (isRun())
-		{
-			SOCKET _sock = _pClient->sockfd();
-
-
-			_fdRead.zero();
-			_fdRead.add(_sock);
-
-			_fdWrite.zero();
-
-			timeval t = { 0,microseconds };
-			int ret = 0;
-			if (_pClient->needWrite())
-			{
-				
-				_fdWrite.add(_sock);
-				ret = select(_sock + 1, _fdRead.fdset(), _fdWrite.fdset(), nullptr, &t);
-			}else {
-				ret = select(_sock + 1, _fdRead.fdset(), nullptr, nullptr, &t);
-			}
-
-			if (ret < 0)
-			{
-				CELLLog_PError("<socket=%d>OnRun.select exit", (int)_sock);
-				Close();
-				return false;
-			}
-
-			if (_fdRead.has(_sock))
-			{
-				if (SOCKET_ERROR == RecvData(_sock))
-				{
-					CELLLog_Error("<socket=%d>OnRun.select RecvData exit", (int)_sock);
-					Close();
-					return false;
-				}
-			}
-
-			if (_fdWrite.has(_sock))
-			{
-				if (SOCKET_ERROR == _pClient->SendDataReal())
-				{
-					CELLLog_Error("<socket=%d>OnRun.select SendDataReal exit", (int)_sock);
-					Close();
-					return false;
-				}
-			}
-			return true;
-		}
-		return false;
-	}
+	virtual bool OnRun(int microseconds = 1) = 0;
 
 	//是否工作中
 	bool isRun()
@@ -147,7 +96,7 @@ public:
 	}
 
 	//接收数据 处理粘包 拆分包
-	int RecvData(SOCKET cSock)
+	int RecvData()
 	{
 		if (isRun())
 		{
@@ -187,8 +136,14 @@ public:
 		return SOCKET_ERROR;
 	}
 protected:
-	CELLFDSet _fdRead;
-	CELLFDSet _fdWrite;
+	virtual void OnInitSocket() {
+		
+	};
+
+	virtual void OnConnect() {
+		
+	};
+protected:
 	CELLClient* _pClient = nullptr;
 	bool _isConnect = false;
 };
