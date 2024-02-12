@@ -1216,9 +1216,408 @@ int main(int argc, char* args[]){
 
 ## IOCP网络模型
 
-> 
+> IOCP网络模型与select、epoll有较大区别。
+>
+> IOCP是windows下的网络模型。
+>
 
+### 使用方法
 
+> 总体的使用策略就是：
+>
+> 1. 创建IOCP。
+> 2. 将设备（socket，文件描述符，句柄）这类东西与IOCP关联。
+> 3. 向IOCP投递特定的任务，如：某个句柄投递接受连接的任务。
+> 4. 根据业务可以重复以上2 3操作。
+
+1. 导入头文件
+
+2. 创建 IO完成端口 IOCP (IoCompletionPort)
+
+   ```c++
+   CreateIoCompletionPort(_In_ HANDLE FileHandle, _In_opt_ HANDLE ExistingCompletionPort, _In_ ULONG_PTR CompletionKey, _In_ DWORD NumberOfConcurrentThreads);
+   
+   // 功能1
+   HANDLE _completionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+   if (NULL == _completionPort)
+   {
+       std::cout << "CreateIoCompletionPort : IOCP create failed with error " << GetLastError() << "\n";
+   }
+   
+   // 功能2
+   auto ret = CreateIoCompletionPort((HANDLE)sockServer, _completionPort, (ULONG_PTR)sockServer, 0);
+   if (NULL == ret)
+   {
+       std::cout << "CreateIoCompletionPort : IOCP relevant failed with error " << GetLastError() << "\n";
+   }
+   ```
+
+   CreateIoCompletionPort 函数要传入四个参数。
+
+   CreateIoCompletionPort 函数有两个功能:
+
+   - 创建一个IO完成端口：
+
+     要使用该功能，前三个参数为：INVALID_HANDLE_VALUE、NULL、0；
+
+     第四个参数是IOCP允许并发线程的数量（为0则默认为cpu的数量）；
+
+     返回一个**IOCP的句柄**。
+
+   - 将一个设备（文件）与IO完成端口相联：
+
+     要使用该功能，第一个参数传入设备句柄（文件、socket等都属于设备）
+
+     第二个参数传入**IOCP的句柄**；
+
+     第三个参数传入完成键值；
+
+     第四个参数传入0，如果使用关联功能的话，该参数其实是被忽略的；
+
+     返回一个**IOCP的句柄**。
+
+3. 关联IOCP和设备（文件，socket）
+
+   上述的 CreateIoCompletionPort 第二个功能。
+
+4. 向IOCP投递接受链接的任务  **AcceptEX**
+
+   > 使用AcceptEX需要提前创建sockfd等待连接socket。
+   >
+   > AcceptEX是完全的异步操作。
+
+   ```c++
+   AcceptEx (
+       _In_ SOCKET sListenSocket,
+       _In_ SOCKET sAcceptSocket,
+       _Out_writes_bytes_(dwReceiveDataLength+dwLocalAddressLength+dwRemoteAddressLength) PVOID lpOutputBuffer,
+       _In_ DWORD dwReceiveDataLength,
+       _In_ DWORD dwLocalAddressLength,
+       _In_ DWORD dwRemoteAddressLength,
+       _Out_ LPDWORD lpdwBytesReceived,
+       _Inout_ LPOVERLAPPED lpOverlapped
+       );
+   ```
+
+   使用方式：
+
+   - 导入头文件``` #include <MSWSock.h> ```
+
+   - 需要提前为**客户端**创建一个socket；（只有服务端才会使用accept）
+
+     ```c++
+     SOCKET sockClient =  socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+     ```
+
+   - 需要提前创建好一个存储数据的**缓冲区**
+
+     ```c++
+     char* buffer[1024] = {};
+     ```
+
+   - 接收数据字节数的反馈
+
+     > 该参数仅当配置为同步操作时才有作用，如果是异步操作则不需要设置该参数。
+
+     ```c++
+     DWORD dwBytes = 0;
+     ```
+
+   - 创建 重叠体
+
+     > 包含用于异步 (或 *重叠*) 输入和输出 (I/O) 的信息。
+
+     ```c++
+     OVERLAPPED overlapped = {};
+     ```
+
+   - 返回值
+
+     如果没有错误，则返回True
+     
+     如果存在错误，则返回false
+
+   - 使用 AcceptEx 函数
+
+     ```c++
+     SOCKET sockServer =  socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+     SOCKET sockClient =  socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+     char* buffer[1024] = {};
+     //DWORD dwBytes = 0;
+     OVERLAPPED overlapped = {};
+     
+     if (false == AcceptEx(sockServer
+                           , sockClient
+                           , buffer
+                           , 0  //  1、 填入 0 代表不要求客户端发送数据   2、 填入 sizeof(buffer) - ((sizeof(sockaddr_in) + 16) * 2) 也可以
+                           , sizeof(sockaddr_in) + 16
+                           , sizeof(sockaddr_in) + 16
+                           , NULL //&dwBytes
+                           , &overlapped))
+     {
+         int err = WSAGetLastError();
+         if (ERROR_IO_PENDING != err)
+         {
+             // AcceptEx 错误
+             std::cout << "AcceptEx failed with error " << err << "\n";
+             return 0;
+         }
+     }
+     ```
+
+   - 提升效率
+
+     > 将AcceptEx函数加载内存中，调用效率更高
+
+     ```c++
+     LPFN_ACCEPTEX lpfnAcceptEx = NULL;
+     void loadAcceptEx(SOCKET ListenSocket)
+     {
+     	GUID GuidAcceptEx = WSAID_ACCEPTEX;
+     	DWORD dwBytes = 0;
+     	int iResult = WSAIoctl(ListenSocket, SIO_GET_EXTENSION_FUNCTION_POINTER,
+     		&GuidAcceptEx, sizeof(GuidAcceptEx),
+     		&lpfnAcceptEx, sizeof(lpfnAcceptEx),
+     		&dwBytes, NULL, NULL);
+     
+     	if (iResult == SOCKET_ERROR) {
+     		printf("WSAIoctl failed with error: %u\n", WSAGetLastError());
+     	}
+     }
+     ```
+
+5. 循环 检测IOCP状态
+
+   > 尝试从指定的 I/O 完成端口取消对 I/O 完成数据包的排队。 如果没有完成数据包排队，函数将等待与完成端口关联的挂起 I/O 操作完成。若要一次取消多个 I/O 完成数据包的排队，请使用 [GetQueuedCompletionStatusEx](https://learn.microsoft.com/zh-cn/windows/desktop/FileIO/getqueuedcompletionstatusex-func) 函数。
+   >
+   > 此函数将线程与指定的完成端口相关联。 一个线程最多可以与一个完成端口相关联。
+   >
+   > 
+   >
+   > 检测和获取完成端口队列中的端口状态。
+   >
+   > WSARecv、WSASend 分别是IOCP的接收操作和发送操作。
+   >
+   > 两个操作都完全是异步操作。
+
+   检测IOCP关联任务的完成状态 GetQueuedCompletionStatus();
+
+   - 函数参数
+
+     ```c++
+     GetQueuedCompletionStatus(
+         _In_ HANDLE CompletionPort,
+         _Out_ LPDWORD lpNumberOfBytesTransferred,
+         _Out_ PULONG_PTR lpCompletionKey,
+         _Out_ LPOVERLAPPED* lpOverlapped,
+         _In_ DWORD dwMilliseconds
+         );
+     ```
+
+   - 使用方式
+
+     ```c++
+     // _completionPort 是 IOCP
+     DWORD bytesTrans = 0;
+     SOCKET sock = INVALID_SOCKET;
+     LPOVERLAPPED lpoverlapped;
+     
+     GetQueuedCompletionStatus(_completionPort
+     			, &bytesTrans
+     			, (PULONG_PTR)&sock
+     			, &lpoverlapped
+     			, 1 /*INFINITE*/)
+     			)
+     ```
+
+     - [in] CompletionPort
+
+       完成端口的句柄。 若要创建完成端口，请使用 [CreateIoCompletionPort](https://learn.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport) 函数。
+
+     - lpNumberOfBytesTransferred
+
+       指向变量的指针，该变量接收在完成的 I/O 操作中传输的字节数。
+
+     - [out] lpCompletionKey
+
+       指向变量的指针，该变量接收与 I/O 操作已完成的文件句柄关联的完成键值。 完成键是在对 [CreateIoCompletionPort](https://learn.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport) 的调用中指定的每个文件密钥。
+
+     - [out] lpOverlapped
+
+       指向变量的指针，该变量接收在启动完成 I/O 操作时指定的 [OVERLAPPED](https://learn.microsoft.com/zh-cn/windows/desktop/api/minwinbase/ns-minwinbase-overlapped) 结构的地址。
+
+     - [in] dwMilliseconds
+
+       调用方愿意等待完成数据包出现在完成端口上的毫秒数。 如果完成数据包未在指定时间内显示，则该函数超时，返回 **FALSE**，并将 \**lpOverlapped* 设置为 **NULL**。
+
+       如果 *dwMilliseconds* 为 **INFINITE**，则函数永远不会超时。如果 *dwMilliseconds* 为零，并且没有要取消排队的 I/O 操作，则函数将立即超时。
+
+   - 函数返回值
+
+     如果成功，则返回非零 (**TRUE**) ，否则返回零 (**FALSE**) 。
+
+   - 具体工作内容\实际使用
+
+   1. GetQueuedCompletionStatus的使用基本逻辑
+
+      ```c++
+      while (true)
+      {
+      	DWORD bytesTrans = 0;
+      	SOCKET sock = INVALID_SOCKET;
+      	IO_DATA_BASE* pIOData;
+      
+      	if (FALSE == GetQueuedCompletionStatus(_completionPort, &bytesTrans, (PULONG_PTR)&sock, (LPOVERLAPPED*)&pIOData, 1))
+      	{
+      		int err = GetLastError();
+      		if (WAIT_TIMEOUT == err)
+      		{
+      			continue;
+      		}
+      		if (ERROR_NETNAME_DELETED == err)
+      		{
+      			printf("关闭 sockfd=%d\n", pIOData->sockfd);
+      			closesocket(pIOData->sockfd);
+      			continue;
+      		}
+      		printf("GetQueuedCompletionStatus failed with error %d\n", err);
+      		break;
+      	}
+      	// 接受链接 完成
+      	if (IO_TYPE::ACCEPT == pIOData->iotype)
+      	{
+      		printf("新客户端加入 sockfd=%d\n", pIOData->sockfd);
+      		// 关联IOCP与ClientSocket
+      		auto ret = CreateIoCompletionPort((HANDLE)pIOData->sockfd, _completionPort, (ULONG_PTR)pIOData->sockfd, 0);
+      		if (!ret)
+      		{
+      			printf("关联IOCP与ClientSocket=%d失败\n", pIOData->sockfd);
+      			closesocket(pIOData->sockfd);
+      			continue;
+      		}
+      		// 向IOCP投递接收数据任务
+      		postRecv(pIOData);
+      	}
+      	// 接收数据 完成 Completion
+      	else if (IO_TYPE::RECV == pIOData->iotype)
+      	{
+      		if (bytesTrans <= 0)
+      		{//客户端断开处理
+      			printf("关闭 sockfd=%d, RECV bytesTrans=%d\n", pIOData->sockfd, bytesTrans);
+      			closesocket(pIOData->sockfd);
+      			continue;
+      		}
+      		printf("收到数据: sockfd=%d, bytesTrans=%d msgCount=%d\n", pIOData->sockfd, bytesTrans, ++msgCount);
+      		pIOData->length = bytesTrans;
+      		// 向IOCP投递发送数据任务
+      		postSend(pIOData);
+      	}
+      	// 发送数据 完成 Completion
+      	else if (IO_TYPE::SEND == pIOData->iotype)
+      	{
+      		if (bytesTrans <= 0)
+      		{//客户端断开处理
+      			printf("关闭 sockfd=%d, SEND bytesTrans=%d\n", pIOData->sockfd, bytesTrans);
+      			closesocket(pIOData->sockfd);
+      			continue;
+      		}
+      		printf("发送数据: sockfd=%d, bytesTrans=%d msgCount=%d\n", pIOData->sockfd, bytesTrans, msgCount);
+      		// 向IOCP投递接收数据任务
+      		postRecv(pIOData);
+      	}
+      	else {
+      		printf("未定义行为 sockfd=%d", sock);
+      	}
+      }
+      ```
+
+   2. 投递接受连接的任务
+
+      ```c++
+      void postAccept(SOCKET sockServer, IO_DATA_BASE* pIO_DATA)
+      {
+      	pIO_DATA->iotype = IO_TYPE::ACCEPT;
+      	pIO_DATA->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+      	if (FALSE == lpfnAcceptEx(sockServer
+      		, pIO_DATA->sockfd
+      		, pIO_DATA->buffer
+      		, 0
+      		, sizeof(sockaddr_in) + 16
+      		, sizeof(sockaddr_in) + 16
+      		, NULL
+      		, &pIO_DATA->overlapped
+      	))
+      	{
+      		int err = WSAGetLastError();
+      		if (ERROR_IO_PENDING != err)
+      		{
+      			printf("AcceptEx failed with error %d\n", err);
+      			return;
+      		}
+      	}
+      }
+      ```
+
+   3. 投递接收数据的任务
+
+      ```c++
+      void postRecv(IO_DATA_BASE* pIO_DATA)
+      {
+      	pIO_DATA->iotype = IO_TYPE::RECV;
+      	WSABUF wsBuff = {};
+      	wsBuff.buf = pIO_DATA->buffer;
+      	wsBuff.len = DATA_BUFF_SIZE;
+      	DWORD flags = 0;
+      	ZeroMemory(&pIO_DATA->overlapped, sizeof(OVERLAPPED));
+      
+      	if (SOCKET_ERROR == WSARecv(pIO_DATA->sockfd, &wsBuff, 1, NULL, &flags, &pIO_DATA->overlapped, NULL))
+      	{
+      		int err = WSAGetLastError();
+      		if (ERROR_IO_PENDING != err)
+      		{
+      			printf("WSARecv failed with error %d\n", err);
+      			return;
+      		}
+      	}
+      }
+      
+      ```
+
+   4. 投递发送数据的任务
+
+      ```c++
+      void postSend(IO_DATA_BASE* pIO_DATA)
+      {
+      	pIO_DATA->iotype = IO_TYPE::SEND;
+      	WSABUF wsBuff = {};
+      	wsBuff.buf = pIO_DATA->buffer;
+      	wsBuff.len = pIO_DATA->length;
+      	DWORD flags = 0;
+      	ZeroMemory(&pIO_DATA->overlapped, sizeof(OVERLAPPED));
+      
+      	if (SOCKET_ERROR == WSASend(pIO_DATA->sockfd, &wsBuff, 1, NULL, flags, &pIO_DATA->overlapped, NULL))
+      	{
+      		int err = WSAGetLastError();
+      		if (ERROR_IO_PENDING != err)
+      		{
+      			printf("WSASend failed with error %d\n", err);
+      			return;
+      		}
+      	}
+      }
+      ```
+
+6. 关闭完成端口IOCP
+
+   ```c++
+   closesocket(sockServer);
+    // close IOCP
+   closeHandle(_completionPort);
+   // close windows socket
+   WSACleanup();
+   ```
+
+   
 
 
 
